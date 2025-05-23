@@ -1,0 +1,704 @@
+<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hullámtér Szimulátor</title>
+    <style>
+        body {
+            margin: 0;
+            padding: 0;
+            background: #000;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+        }
+        
+        #container {
+            position: relative;
+            width: 100vw;
+            height: 100vh;
+        }
+        
+        #controls {
+            position: absolute;
+            top: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 20px;
+            border-radius: 10px;
+            color: white;
+        }
+        
+        #instructionsCloseBtn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #ff4444;
+            color: white;
+            border: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            font-weight: bold;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            line-height: 1;
+        }
+        
+        #instructionsCloseBtn:hover {
+            background: #ff6666;
+        }
+        
+        .control-group {
+            margin-bottom: 15px;
+        }
+        
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-size: 14px;
+        }
+        
+        input[type="range"] {
+            width: 200px;
+            margin-bottom: 5px;
+        }
+        
+        .value-display {
+            font-size: 12px;
+            color: #ccc;
+        }
+        
+        button {
+            background: #4444ff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            margin-right: 10px;
+            border-radius: 5px;
+            cursor: pointer;
+            font-size: 14px;
+        }
+        
+        button:hover {
+            background: #6666ff;
+        }
+        
+        button:active {
+            background: #2222dd;
+        }
+        
+        select {
+            background: #333;
+            color: white;
+            border: 1px solid #666;
+            padding: 5px;
+            border-radius: 3px;
+            font-size: 14px;
+            width: 120px;
+        }
+        
+        select:focus {
+            outline: none;
+            border-color: #4444ff;
+        }
+        
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 15px;
+            border-radius: 10px;
+            color: white;
+            font-size: 12px;
+        }
+        
+        #version {
+            position: absolute;
+            top: 20px;
+            right: 20px;
+            z-index: 100;
+            background: rgba(0, 0, 0, 0.7);
+            padding: 10px;
+            border-radius: 5px;
+            color: white;
+            font-size: 14px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div id="container">
+        <div id="version">Hullámtér Szimulátor Verzió: 1.1</div>
+        <div id="controls">
+            <div class="control-group">
+                <label for="intensity">Kibocsájtási intenzitás:</label>
+                <input type="range" id="intensity" min="0" max="2" step="0.1" value="0.1">
+                <div class="value-display" id="intensityValue">0.1</div>
+            </div>
+            
+            <div class="control-group">
+                <label for="opacity">Átlátszóság:</label>
+                <input type="range" id="opacity" min="0" max="1" step="0.05" value="0.5">
+                <div class="value-display" id="opacityValue">0.50</div>
+            </div>
+            
+            <div class="control-group">
+                <label for="sourceSpeed">Forráspont sebessége:</label>
+                <input type="range" id="sourceSpeed" min="0" max="0.5" step="0.001" value="0">
+                <div class="value-display" id="sourceSpeedValue">0.000</div>
+            </div>
+            
+            <div class="control-group">
+                <label for="movementType">Mozgástípusok:</label>
+                <select id="movementType">
+                    <option value="water">Vízelem</option>
+                    <option value="fire">Tűzelem</option>
+                    <option value="circular">Körmozgás</option>
+                    <option value="spiral">Spirális mozgás</option>
+                </select>
+            </div>
+            
+            <div class="control-group">
+                <button id="pauseBtn">Szünet</button>
+                <button id="resetBtn">Újrakezd</button>
+                <button id="cameraResetBtn">Kamera Reset</button>
+            </div>
+        </div>
+        
+        <div id="instructions">
+            <button id="instructionsCloseBtn">×</button>
+            <h4 style="margin: 0 0 10px 0; color: #ffff88;">Irányítás:</h4>
+            <div style="margin-bottom: 8px;"><strong>🖱️ Bal egérgomb:</strong> Kibocsájtó pont mozgatása</div>
+            <div style="margin-bottom: 8px;"><strong>🖱️ Jobb egérgomb:</strong> Kamera forgatása</div>
+            <div style="margin-bottom: 8px;"><strong>🖱️ Egérgörgő:</strong> Zoom be/ki</div>
+            <div style="margin-bottom: 8px;"><strong>⌨️ Nyilak/WASD:</strong> Kamera mozgatása</div>
+            
+            <h4 style="margin: 15px 0 10px 0; color: #88ff88;">Funkciók:</h4>
+            <div style="margin-bottom: 5px;"><strong>Intenzitás:</strong> Kibocsájtási sebesség</div>
+            <div style="margin-bottom: 5px;"><strong>Átlátszóság:</strong> Gömbök láthatósága (1=drótváz, 0=szilárd)</div>
+            <div style="margin-bottom: 5px;"><strong>Forráspont sebessége:</strong> Piros gömb mozgási sebessége</div>
+            <div style="margin-bottom: 5px;"><strong>Vízelem:</strong> Statikus kibocsájtás</div>
+            <div style="margin-bottom: 5px;"><strong>Tűzelem:</strong> Mozgó kibocsájtó pont</div>
+            <div style="margin-bottom: 5px;"><strong>Körmozgás:</strong> Körkörös mozgás az X-Z síkon</div>
+            <div style="margin-bottom: 5px;"><strong>Spirális mozgás:</strong> Körkörös + emelkedő mozgás</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script>
+        // Változók
+        let scene, camera, renderer;
+        let emitterPoint;
+        let spheres = [];
+        let mouse = { x: 0, y: 0 };
+        let isLeftMouseDown = false;
+        let isRightMouseDown = false;
+        let lastMouseX = 0;
+        let lastMouseY = 0;
+        let camer3D Hullamter animatoraDistance = 5;
+        let cameraAngleX = 0;
+        let cameraAngleY = 0;
+        let cameraCenter = { x: 0, y: 0, z: 0 }; // Kamera középpontja
+        let keysPressed = {};
+        let isPaused = false;
+        
+        // Beállítások
+        let emissionIntensity = 0.1;
+        let sphereOpacity = 0.5; // Alapértelmezett 0.5 átlátszóság
+        let sourceSpeed = 0.0;
+        let lastEmissionTime = 0;
+        let movementType = 'water'; // 'water', 'fire', 'circular' vagy 'spiral'
+        let emitterVelocity = 0; // Kibocsájtó pont sebessége x irányben
+        let emitterDirection = 1; // Mozgás iránya (1 vagy -1)
+        let circleRadius = 4; // Körmozgás sugara (ThreeJS egységben, nem pixelben)
+        let circleAngle = 0; // Körmozgás szöge
+        let spiralHeight = 0; // Spirális mozgás magassága
+        
+        // Inicializálás
+        function init() {
+            // Jelenet létrehozása
+            scene = new THREE.Scene();
+            
+            // Kamera beállítása
+            camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+            updateCameraPosition();
+            
+            // Renderer létrehozása
+            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer.setSize(window.innerWidth, window.innerHeight);
+            renderer.setClearColor(0xcccccc, 1);
+            document.getElementById('container').appendChild(renderer.domElement);
+            
+            // Világítás - Fejlesztett világítási rendszer
+            // Ambient fény a teljes jelenet alapvilágításához
+            const ambientLight = new THREE.AmbientLight(0x404040, 0.4);
+            scene.add(ambientLight);
+            
+            // Fő irányított fényforrás
+            const mainLight = new THREE.DirectionalLight(0xffffff, 0.8);
+            mainLight.position.set(5, 5, 5);
+            mainLight.castShadow = true;
+            scene.add(mainLight);
+            
+            // Kiegészítő fényforrások a jobb 3D hatás érdekében
+            const fillLight1 = new THREE.PointLight(0x9090ff, 0.6);
+            fillLight1.position.set(-5, 2, 3);
+            scene.add(fillLight1);
+            
+            const fillLight2 = new THREE.PointLight(0xffa040, 0.5);
+            fillLight2.position.set(3, -5, -3);
+            scene.add(fillLight2);
+            
+            // Kibocsájtó pont létrehozása (sokkal kisebb piros gömb) - árnyékolt felülettel
+            const emitterGeometry = new THREE.SphereGeometry(0.017, 16, 16); // 0.05 helyett 0.017 (kb 3x kisebb)
+            const emitterMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xff0000,
+                shininess: 80,
+                specular: 0x444444
+            });
+            emitterPoint = new THREE.Mesh(emitterGeometry, emitterMaterial);
+            scene.add(emitterPoint);
+            
+            // Eseménykezelők
+            setupEventListeners();
+            
+            // Animáció indítása
+            animate();
+        }
+        
+        function setupEventListeners() {
+            // Egér események
+            renderer.domElement.addEventListener('mousedown', onMouseDown);
+            renderer.domElement.addEventListener('mousemove', onMouseMove);
+            renderer.domElement.addEventListener('mouseup', onMouseUp);
+            renderer.domElement.addEventListener('wheel', onMouseWheel);
+            renderer.domElement.addEventListener('contextmenu', (e) => e.preventDefault()); // Jobb klikk menü letiltása
+            
+            // Billentyűzet események
+            window.addEventListener('keydown', onKeyDown);
+            window.addEventListener('keyup', onKeyUp);
+            
+            // Ablak átméretezés
+            window.addEventListener('resize', onWindowResize);
+            
+            // Csúszkák és gombok
+            const intensitySlider = document.getElementById('intensity');
+            const opacitySlider = document.getElementById('opacity');
+            const sourceSpeedSlider = document.getElementById('sourceSpeed');
+            const movementTypeSelect = document.getElementById('movementType');
+            const pauseBtn = document.getElementById('pauseBtn');
+            const resetBtn = document.getElementById('resetBtn');
+            const cameraResetBtn = document.getElementById('cameraResetBtn');
+            const instructionsCloseBtn = document.getElementById('instructionsCloseBtn');
+            
+            intensitySlider.addEventListener('input', (e) => {
+                emissionIntensity = parseFloat(e.target.value);
+                document.getElementById('intensityValue').textContent = emissionIntensity.toFixed(1);
+            });
+            
+            opacitySlider.addEventListener('input', (e) => {
+                sphereOpacity = parseFloat(e.target.value); // Közvetlenül használjuk az értéket
+                document.getElementById('opacityValue').textContent = sphereOpacity.toFixed(2);
+                updateSphereMaterials();
+            });
+            
+            sourceSpeedSlider.addEventListener('input', (e) => {
+                const sliderValue = parseFloat(e.target.value);
+                // Exponenciális skálázás a lassú induláshoz
+                sourceSpeed = Math.pow(sliderValue * 2, 2) * 0.01; // Sokkal lassabb progresszió
+                document.getElementById('sourceSpeedValue').textContent = sliderValue.toFixed(3);
+                if (movementType === 'fire') {
+                    emitterVelocity = sourceSpeed;
+                }
+            });
+            
+            movementTypeSelect.addEventListener('change', (e) => {
+                movementType = e.target.value;
+                // Visszaállítjuk a kibocsájtó pont pozícióját
+                emitterPoint.position.set(0, 0, 0);
+                // Visszaállítjuk a körmozgás és spirális mozgás változóit
+                circleAngle = 0;
+                spiralHeight = 0;
+                
+                if (movementType === 'fire') {
+                    // Tűzelem esetén a forráspont sebessége 0.3
+                    sourceSpeedSlider.value = 0.3; 
+                    const sliderValue = 0.3;
+                    sourceSpeed = Math.pow(sliderValue * 2, 2) * 0.01;
+                    emitterVelocity = sourceSpeed;
+                    document.getElementById('sourceSpeedValue').textContent = sliderValue.toFixed(3);
+                } else if (movementType === 'circular' || movementType === 'spiral') {
+                    // Körmozgás és spirális mozgás esetén is beállítunk egy alapértelmezett sebességet
+                    sourceSpeedSlider.value = 0.1;
+                    const sliderValue = 0.1;
+                    sourceSpeed = Math.pow(sliderValue * 2, 2) * 0.01;
+                    document.getElementById('sourceSpeedValue').textContent = sliderValue.toFixed(3);
+                    // Biztosítjuk, hogy a kibocsájtó pont látható legyen
+                    emitterPoint.visible = true;
+                } else {
+                    emitterVelocity = 0;
+                    sourceSpeedSlider.value = 0;
+                    sourceSpeed = 0;
+                    document.getElementById('sourceSpeedValue').textContent = '0.000';
+                }
+            });
+            
+            pauseBtn.addEventListener('click', () => {
+                isPaused = !isPaused;
+                pauseBtn.textContent = isPaused ? 'Folytat' : 'Szünet';
+            });
+            
+            resetBtn.addEventListener('click', () => {
+                resetScene();
+            });
+            
+            cameraResetBtn.addEventListener('click', () => {
+                resetCamera();
+            });
+            
+            instructionsCloseBtn.addEventListener('click', () => {
+                document.getElementById('instructions').style.display = 'none';
+            });
+        }
+        
+        function onMouseDown(event) {
+            if (event.button === 0) { // Bal egérgomb
+                isLeftMouseDown = true;
+                updateMousePosition(event);
+            } else if (event.button === 2) { // Jobb egérgomb
+                isRightMouseDown = true;
+                lastMouseX = event.clientX;
+                lastMouseY = event.clientY;
+            }
+        }
+        
+        function onMouseMove(event) {
+            if (isLeftMouseDown) {
+                updateMousePosition(event);
+            } else if (isRightMouseDown) {
+                const deltaX = event.clientX - lastMouseX;
+                const deltaY = event.clientY - lastMouseY;
+                
+                cameraAngleY += deltaX * 0.01;
+                cameraAngleX += deltaY * 0.01;
+                
+                // Függőleges szög korlátozása
+                cameraAngleX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, cameraAngleX));
+                
+                updateCameraPosition();
+                
+                lastMouseX = event.clientX;
+                lastMouseY = event.clientY;
+            }
+        }
+        
+        function onMouseUp(event) {
+            if (event.button === 0) {
+                isLeftMouseDown = false;
+            } else if (event.button === 2) {
+                isRightMouseDown = false;
+            }
+        }
+        
+        function onKeyDown(event) {
+            keysPressed[event.code] = true;
+        }
+        
+        function onKeyUp(event) {
+            keysPressed[event.code] = false;
+        }
+        
+        function handleKeyboardMovement() {
+            const moveSpeed = 0.1;
+            
+            // Kamera irányának kiszámítása
+            const forward = new THREE.Vector3();
+            camera.getWorldDirection(forward);
+            const right = new THREE.Vector3();
+            right.crossVectors(forward, camera.up).normalize();
+            
+            if (keysPressed['ArrowUp'] || keysPressed['KeyW']) {
+                // Előre
+                cameraCenter.x += forward.x * moveSpeed;
+                cameraCenter.y += forward.y * moveSpeed;
+                cameraCenter.z += forward.z * moveSpeed;
+            }
+            if (keysPressed['ArrowDown'] || keysPressed['KeyS']) {
+                // Hátra
+                cameraCenter.x -= forward.x * moveSpeed;
+                cameraCenter.y -= forward.y * moveSpeed;
+                cameraCenter.z -= forward.z * moveSpeed;
+            }
+            if (keysPressed['ArrowLeft'] || keysPressed['KeyA']) {
+                // Balra
+                cameraCenter.x -= right.x * moveSpeed;
+                cameraCenter.y -= right.y * moveSpeed;
+                cameraCenter.z -= right.z * moveSpeed;
+            }
+            if (keysPressed['ArrowRight'] || keysPressed['KeyD']) {
+                // Jobbra
+                cameraCenter.x += right.x * moveSpeed;
+                cameraCenter.y += right.y * moveSpeed;
+                cameraCenter.z += right.z * moveSpeed;
+            }
+            
+            updateCameraPosition();
+        }
+        
+        function onMouseWheel(event) {
+            event.preventDefault();
+            cameraDistance += event.deltaY * 0.01;
+            cameraDistance = Math.max(1, Math.min(20, cameraDistance)); // Korlátozás 1-20 között
+            updateCameraPosition();
+        }
+        
+        function updateCameraPosition() {
+            const x = cameraDistance * Math.sin(cameraAngleY) * Math.cos(cameraAngleX);
+            const y = cameraDistance * Math.sin(cameraAngleX);
+            const z = cameraDistance * Math.cos(cameraAngleY) * Math.cos(cameraAngleX);
+            
+            camera.position.set(
+                x + cameraCenter.x, 
+                y + cameraCenter.y, 
+                z + cameraCenter.z
+            );
+            camera.lookAt(cameraCenter.x, cameraCenter.y, cameraCenter.z);
+        }
+        
+        function resetCamera() {
+            cameraDistance = 5;
+            cameraAngleX = 0;
+            cameraAngleY = 0;
+            cameraCenter = { x: 0, y: 0, z: 0 };
+            updateCameraPosition();
+        }
+        
+        function updateMousePosition(event) {
+            const rect = renderer.domElement.getBoundingClientRect();
+            mouse.x = ((event.clientX - rect.left) / rect.width) * 2 - 1;
+            mouse.y = -((event.clientY - rect.top) / rect.height) * 2 + 1;
+            
+            // Kibocsájtó pont pozíciójának frissítése
+            const vector = new THREE.Vector3(mouse.x, mouse.y, 0);
+            vector.unproject(camera);
+            const dir = vector.sub(camera.position).normalize();
+            const distance = -camera.position.z / dir.z;
+            const pos = camera.position.clone().add(dir.multiplyScalar(distance));
+            
+            emitterPoint.position.copy(pos);
+        }
+        
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+        
+        function createSphere() {
+            // Nagyobb felbontású gömb geometria a jobb megjelenítéshez
+            const geometry = new THREE.SphereGeometry(0.1, 32, 24);
+            
+            // Átlátszó kék felületi anyag - PhongMaterial a fényes felületért (mint a piros gömb)
+            const baseMaterial = new THREE.MeshPhongMaterial({
+                color: 0x6666ff,
+                transparent: true,
+                opacity: 1 - sphereOpacity, // Fordított logika
+                shininess: 80,
+                specular: 0x444444,
+                side: THREE.DoubleSide,
+                visible: sphereOpacity < 1 // Csak akkor látható ha nem teljesen átlátszó
+            });
+            
+            // Wireframe anyag - mindig látható sötétebb szürke vonalakkal
+            const wireframeMaterial = new THREE.MeshBasicMaterial({
+                color: 0x404040,
+                wireframe: true,
+                transparent: false,
+                opacity: 1.0,
+                depthTest: true,
+                wireframeLinewidth: 1
+            });
+            
+            // Gömb létrehozása a kombinált anyagokkal
+            const sphere = new THREE.Group();
+            const baseSphereMesh = new THREE.Mesh(geometry, baseMaterial);
+            const wireframeSphereMesh = new THREE.Mesh(geometry, wireframeMaterial);
+            
+            sphere.add(baseSphereMesh);
+            sphere.add(wireframeSphereMesh);
+            
+            // Pozíció beállítása
+            sphere.position.copy(emitterPoint.position);
+            
+            // Felhasználói adatok tárolása a későbbi animációhoz
+            sphere.userData = {
+                centerPosition: emitterPoint.position.clone(),
+                scale: 0.1,
+                growthRate: 0.02,
+                life: 0,
+                baseMaterial: baseSphereMesh.material,
+                wireframeMaterial: wireframeSphereMesh.material,
+                baseMesh: baseSphereMesh,
+                wireframeMesh: wireframeSphereMesh
+            };
+            
+            // Hozzáadás a jelenethez és a gömbök listájához
+            scene.add(sphere);
+            spheres.push(sphere);
+        }
+        
+        function updateSphereMaterials() {
+            spheres.forEach(sphere => {
+                const userData = sphere.userData;
+                if (userData.baseMaterial && userData.wireframeMaterial && userData.baseMesh) {
+                    
+                    // Ha az átlátszóság 1 (csúszka jobb szélén), akkor csak a wireframe látszik
+                    if (sphereOpacity === 1) {
+                        userData.baseMesh.visible = false;
+                        userData.wireframeMaterial.opacity = 1.0;
+                    } else {
+                        // Ha az átlátszóság kisebb mint 1, akkor mindkét anyag látszik
+                        userData.baseMesh.visible = true;
+                        
+                        // Alap anyag átlátszóságának beállítása az átlátszóság értéke alapján
+                        userData.baseMaterial.opacity = sphereOpacity;
+                        userData.baseMaterial.needsUpdate = true;
+                        
+                        // Wireframe átlátszóságának frissítése
+                        userData.wireframeMaterial.opacity = 1.0;
+                    }
+                    
+                    userData.wireframeMaterial.needsUpdate = true;
+                }
+            });
+        }
+        
+        function resetScene() {
+            // Gömbök eltávolítása
+            spheres.forEach(sphere => {
+                scene.remove(sphere);
+                if (sphere.userData.baseMaterial) sphere.userData.baseMaterial.dispose();
+                if (sphere.userData.wireframeMaterial) sphere.userData.wireframeMaterial.dispose();
+            });
+            spheres.length = 0;
+            
+            // Kibocsájtó pont visszaállítása középre
+            emitterPoint.position.set(0, 0, 0);
+            
+            // Időzítők visszaállítása
+            lastEmissionTime = 0;
+            
+            // Körmozgás és spirális mozgás változók visszaállítása
+            circleAngle = 0;
+            spiralHeight = 0;
+            
+            // Pause állapot visszaállítása
+            isPaused = false;
+            document.getElementById('pauseBtn').textContent = 'Szünet';
+        }
+        
+        function updateSpheres() {
+            for (let i = 0; i < spheres.length; i++) {
+                const sphere = spheres[i];
+                const userData = sphere.userData;
+                
+                // A pozíció a rögzített középponton marad
+                sphere.position.copy(userData.centerPosition);
+                
+                // Folyamatos méret növelése
+                userData.scale += userData.growthRate;
+                sphere.scale.set(userData.scale, userData.scale, userData.scale);
+                
+                // Élettartam növelése
+                userData.life++;
+                
+                // Fokozatos átlátszóság csökkentése az idő múlásával
+                const ageFactor = Math.min(userData.life * 0.005, 0.8);
+                
+                // Frissítjük mindkét anyagot
+                if (userData.baseMaterial && userData.wireframeMaterial && userData.baseMesh) {
+                    
+                    // Ha az átlátszóság 1, akkor csak a wireframe látszik
+                    if (sphereOpacity === 1) {
+                        userData.baseMesh.visible = false;
+                        const wireframeOpacity = 1.0 * (1 - ageFactor * 0.5);
+                        userData.wireframeMaterial.opacity = Math.max(wireframeOpacity, 0.2);
+                    } else {
+                        // Ha az átlátszóság kisebb mint 1, akkor mindkét anyag látszik
+                        userData.baseMesh.visible = true;
+                        
+                        // Alap anyag átlátszóságának frissítése - szilárd felület
+                        const baseOpacity = (1 - sphereOpacity) * (1 - ageFactor);
+                        userData.baseMaterial.opacity = Math.max(baseOpacity, 0.0);
+                        
+                        // Wireframe átlátszóságának frissítése
+                        const wireframeOpacity = 1.0 * (1 - ageFactor * 0.5);
+                        userData.wireframeMaterial.opacity = Math.max(wireframeOpacity, 0.2);
+                    }
+                }
+            }
+        }
+        
+        function animate() {
+            requestAnimationFrame(animate);
+            
+            // Billentyűzetes kamera mozgatás kezelése
+            handleKeyboardMovement();
+            
+            // Kibocsájtó pont mozgatása a kiválasztott mozgástípus szerint
+            if (!isPaused) {
+                if (movementType === 'fire') {
+                    // Folyamatos mozgás egy irányba a végtelenségig
+                    emitterPoint.position.x += emitterVelocity * emitterDirection;
+                } 
+                else if (movementType === 'circular') {
+                    // Körmozgás az X-Z síkon
+                    circleAngle += 0.01 + sourceSpeed * 0.1; // Alapsebesség + felhasználói sebesség
+                    const x = Math.cos(circleAngle) * circleRadius;
+                    const z = Math.sin(circleAngle) * circleRadius;
+                    emitterPoint.position.set(x, 0, z);
+                }
+                else if (movementType === 'spiral') {
+                    // Spirális mozgás - körmozgás + egyenletes emelkedés
+                    circleAngle += 0.01 + sourceSpeed * 0.1; // Alapsebesség + felhasználói sebesség
+                    const x = Math.cos(circleAngle) * circleRadius;
+                    const z = Math.sin(circleAngle) * circleRadius;
+                    
+                    // Y tengelyen egyenletes emelkedés
+                    spiralHeight += 0.02 + sourceSpeed * 0.1;
+                    
+                    emitterPoint.position.set(x, spiralHeight, z);
+                }
+            }
+            
+            // Ha nincs pause állapotban
+            if (!isPaused) {
+                const currentTime = Date.now();
+                
+                // Gömb kibocsájtás - kevésbé sűrű alapértelmezett értéknél
+                const emissionInterval = 200 / emissionIntensity; // ms (200 helyett 100)
+                if (currentTime - lastEmissionTime > emissionInterval) {
+                    createSphere();
+                    lastEmissionTime = currentTime;
+                }
+                
+                // Gömbök frissítése
+                updateSpheres();
+            }
+            
+            // Renderelés mindig fut (hogy az egér mozgatás látható legyen pause alatt is)
+            renderer.render(scene, camera);
+        }
+        
+        // Indítás
+        init();
+    </script>
+</body>
+</html>
