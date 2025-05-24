@@ -160,6 +160,12 @@
                 <input type="range" id="sourceSpeedY" min="0" max="0.5" step="0.001" value="0">
                 <div class="value-display" id="sourceSpeedYValue">0.000</div>
             </div>
+
+            <div class="control-group" id="circleRadiusControlGroup" style="display: none;">
+                <label for="circleRadiusSlider">Körmozgás sugara:</label>
+                <input type="range" id="circleRadiusSlider" min="0" max="5" step="0.1" value="4">
+                <div class="value-display" id="circleRadiusValue">4.0</div>
+            </div>
             
             <div class="control-group">
                 <label for="movementType">Mozgástípusok:</label>
@@ -328,6 +334,8 @@
             const opacitySlider = document.getElementById('opacity');
             const sourceSpeedXSlider = document.getElementById('sourceSpeedX');
             const sourceSpeedYSlider = document.getElementById('sourceSpeedY');
+            const circleRadiusSlider = document.getElementById('circleRadiusSlider');
+            const circleRadiusControlGroup = document.getElementById('circleRadiusControlGroup');
             const movementTypeSelect = document.getElementById('movementType');
             const pauseBtn = document.getElementById('pauseBtn');
             const resetBtn = document.getElementById('resetBtn');
@@ -356,6 +364,12 @@
                 document.getElementById('sourceSpeedYValue').textContent = sourceSpeedY.toFixed(3);
                 console.log('sourceSpeedY changed to:', sourceSpeedY);
             });
+
+            circleRadiusSlider.addEventListener('input', (e) => {
+                circleRadius = parseFloat(e.target.value);
+                document.getElementById('circleRadiusValue').textContent = circleRadius.toFixed(1);
+                console.log('circleRadius changed to:', circleRadius);
+            });
             
             movementTypeSelect.addEventListener('change', (e) => {
                 movementType = e.target.value;
@@ -375,6 +389,13 @@
                 }
                 console.log('Movement type changed to:', movementType, 'New Multipliers X:', currentXMultiplier, 'Y:', currentYMultiplier);
                 emitterPoint.visible = (movementType !== 'water');
+
+                // Körmozgás sugara csúszka láthatóságának beállítása
+                if (movementType === 'circular' || movementType === 'spiral') {
+                    circleRadiusControlGroup.style.display = 'block';
+                } else {
+                    circleRadiusControlGroup.style.display = 'none';
+                }
 
                 // Csúszkák és sourceSpeed értékek beállítása az initialSliderValues alapján
                 if (initialSliderValues[movementType]) {
