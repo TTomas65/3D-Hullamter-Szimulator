@@ -770,8 +770,43 @@
             renderer.render(scene, camera);
         }
         
-        // Indítás
+        // Kezdeti inicializálás - csak egyszer hívjuk meg
         init();
+        
+        // Oldal frissítésekor alapállapotba állítás
+        // A window.onbeforeunload esemény nem megfelelő erre a célra, mert az oldal bezárásakor is lefut
+        // Ezért egy egyedi gombot adunk hozzá, ami újratölti az oldalt
+        
+        // Újratöltés gomb hozzáadása a vezérlőpanelhez
+        const controlButtonsGroup = document.querySelector('#controls .control-group:last-child');
+        const reloadBtn = document.createElement('button');
+        reloadBtn.id = 'reloadBtn';
+        reloadBtn.textContent = 'Újratöltés';
+        reloadBtn.addEventListener('click', function() {
+            // Mozgástípus beállítása Vízelemre az újratöltés előtt
+            // Ez a beállítás a sessionStorage-ban tárolódik, amit az oldal betöltésekor olvasunk ki
+            sessionStorage.setItem('resetToWater', 'true');
+            
+            // Az oldal újratöltése, ami minden változót alapállapotba állít
+            window.location.reload();
+        });
+        controlButtonsGroup.appendChild(reloadBtn);
+        
+        // Ellenőrizzük, hogy újratöltés történt-e, és ha igen, állítsuk a mozgástípust Vízelemre
+        if (sessionStorage.getItem('resetToWater') === 'true') {
+            // Töröljük a jelzőt
+            sessionStorage.removeItem('resetToWater');
+            
+            // Beállítjuk a mozgástípust Vízelemre
+            const movementTypeSelect = document.getElementById('movementType');
+            movementTypeSelect.value = 'water';
+            
+            // Aktiváljuk a változás eseményt, hogy a kód minden szükséges változót frissítsen
+            const event = new Event('change');
+            movementTypeSelect.dispatchEvent(event);
+            
+            console.log('Mozgástípus Vízelemre állítva az újratöltés után.');
+        }
     </script>
 </body>
 </html>
