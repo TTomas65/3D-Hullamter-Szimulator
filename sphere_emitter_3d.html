@@ -237,6 +237,13 @@
         };
         let currentXMultiplier = 0; // Az aktuálisan kiválasztott mozgástípus X-irányú szorzója
         let currentYMultiplier = 0; // Az aktuálisan kiválasztott mozgástípus Y-irányú szorzója
+
+        // Csúszkák kezdőértékei a különböző mozgástípusokhoz (0 és 0.5 között)
+        const initialSliderValues = {
+            fire:     { x: 0.07, y: 0.0 }, 
+            circular: { x: 0.1, y: 0.0 }, 
+            spiral:   { x: 0.142, y: 0.09 }
+        };
         
         // Inicializálás
         function init() {
@@ -368,7 +375,32 @@
                 }
                 console.log('Movement type changed to:', movementType, 'New Multipliers X:', currentXMultiplier, 'Y:', currentYMultiplier);
                 emitterPoint.visible = (movementType !== 'water');
-                // A sourceSpeedXSlider/sourceSpeedYSlider és sourceSpeedX/sourceSpeedY értékét nem bántjuk, megőrzik az aktuális csúszka pozíciót.
+
+                // Csúszkák és sourceSpeed értékek beállítása az initialSliderValues alapján
+                if (initialSliderValues[movementType]) {
+                    const initX = initialSliderValues[movementType].x;
+                    const initY = initialSliderValues[movementType].y;
+
+                    sourceSpeedXSlider.value = initX;
+                    sourceSpeedX = initX;
+                    document.getElementById('sourceSpeedXValue').textContent = initX.toFixed(3);
+                    console.log('Set sourceSpeedX to initial:', initX);
+
+                    sourceSpeedYSlider.value = initY;
+                    sourceSpeedY = initY;
+                    document.getElementById('sourceSpeedYValue').textContent = initY.toFixed(3);
+                    console.log('Set sourceSpeedY to initial:', initY);
+                } else {
+                    // Ha nincs definiált kezdőérték (pl. 'water'), nullázzuk a csúszkákat és sebességeket
+                    sourceSpeedXSlider.value = 0;
+                    sourceSpeedX = 0;
+                    document.getElementById('sourceSpeedXValue').textContent = '0.000';
+                    
+                    sourceSpeedYSlider.value = 0;
+                    sourceSpeedY = 0;
+                    document.getElementById('sourceSpeedYValue').textContent = '0.000';
+                    console.log('No initial slider values for', movementType, 'setting to 0.');
+                }
             });
             
             pauseBtn.addEventListener('click', () => {
