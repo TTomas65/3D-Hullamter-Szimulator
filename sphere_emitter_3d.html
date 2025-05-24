@@ -34,15 +34,21 @@
         }
         
         #controls.collapsed {
-            height: 45px; /* Csak annyi magasság, hogy a gomb látszódjon */
-            min-width: 340px; /* Biztosítja, hogy a szélesség nem változik */
-            width: 340px; /* Fix szélesség összecsukott állapotban is */
+            height: 10px; /* Csak annyi magasság, hogy a gomb látszódjon */
+            min-width: 440px; /* Biztosítja, hogy a szélesség nem változik */
+            width: 440px; /* Fix szélesség összecsukott állapotban is */
             overflow: hidden; /* Biztosítja, hogy semmi sem lóg ki */
         }
         
-        /* Minden gyermekelem elrejtése a panelen belül, kivéve a vezérlőgombot */
-        #controls.collapsed > * {
+        /* Minden gyermekelem elrejtése a panelen belül, kivéve a fejlécet */
+        #controls.collapsed > *:not(.panel-header) {
             display: none !important;
+        }
+        
+        /* A panel fejléc stílusai összecsukott állapotban */
+        #controls.collapsed .panel-header {
+            margin-bottom: 0;
+            padding: 10px 30px 10px 10px; /* Fent és lent 10px, jobb oldalon hely a gombnak */
         }
         
         /* Biztosítjuk, hogy a gomb mindig látható marad */
@@ -54,11 +60,30 @@
             z-index: 999;
         }
         
+        /* A gomb állapota összecsukott állapotban (lefelé mutat) */
+        #controls.collapsed #toggleControlsBtn::after {
+            content: '▼';
+        }
+        
         /* Explicit módon elrejtjük a Körmozgás sugara csúszkát összecsukott állapotban */
         #controls.collapsed #circleRadiusControlGroup {
             display: none !important;
         }
         
+        .panel-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+            padding-right: 30px; /* Hely a gombnak */
+        }
+
+        .panel-title {
+            font-weight: bold;
+            font-size: 16px;
+            color: white;
+        }
+
         #toggleControlsBtn {
             position: absolute;
             top: 10px;
@@ -75,6 +100,13 @@
             align-items: center;
             justify-content: center;
             z-index: 101;
+            transition: transform 0.3s ease; /* Sima átmenet a forgatáshoz */
+        }
+        
+        /* A gomb alapértelmezett állapota (felfelé mutat) */
+        #toggleControlsBtn::after {
+            content: '▲';
+            display: block;
         }
         
         #toggleControlsBtn:hover {
@@ -105,23 +137,29 @@
         }
         
         .control-group {
-            margin-bottom: 15px;
+            margin-bottom: 8px; /* Csökkentett margó, hogy a csúszkák közelebb legyenek egymáshoz */
+            position: relative; /* Relatív pozíció, hogy az abszolút pozíciójú értékek ehhez viszonyítva helyezkedjenek el */
         }
         
         label {
             display: block;
-            margin-bottom: 5px;
+            margin-bottom: 3px; /* Csökkentett margó, hogy a címke és a csúszka közelebb legyen */
             font-size: 14px;
         }
         
         input[type="range"] {
-            width: 200px;
-            margin-bottom: 5px;
+            width: 180px; /* Csökkentett szélesség, hogy legyen hely az értékeknek */
+            margin-bottom: 0; /* Nincs alsó margó, mert az érték most már mellette van */
         }
         
         .value-display {
             font-size: 12px;
             color: #ccc;
+            position: absolute; /* Abszolút pozíció, hogy a csúszka után helyezkedjen el */
+            right: 0; /* Jobb oldalt helyezkedik el */
+            top: 50%; /* Függőlegesen középre igazítva */
+            transform: translateY(-50%); /* Pontos függőleges középre igazítás */
+            margin-right: 5px; /* Kis távolság a panel szélétől */
         }
         
         button {
@@ -186,11 +224,14 @@
 </head>
 <body>
     <div id="container">
-        <div id="version">Hullámtér Szimulátor Verzió: 1.15</div>
+        <div id="version">Hullámtér Szimulátor Verzió: 1.16</div>
         <div id="controls">
+            <div class="panel-header">
+            <div class="panel-title">IRÁNYÍTÓ PANEL:</div>
             <button id="toggleControlsBtn" title="Panel összezárása/kinyitása">▲</button>
+        </div>
             <div class="control-group">
-                <label for="intensity">Kibocsájtási intenzitás:</label>
+                <label for="intensity">Kiáradási intenzitás:</label>
                 <input type="range" id="intensity" min="0" max="2" step="0.1" value="0.1">
                 <div class="value-display" id="intensityValue">0.1</div>
             </div>
@@ -239,20 +280,18 @@
         <div id="instructions">
             <button id="instructionsCloseBtn">×</button>
             <h4 style="margin: 0 0 10px 0; color: #ffff88;">Irányítás:</h4>
-            <div style="margin-bottom: 8px;"><strong>🖱️ Bal egérgomb:</strong> Kibocsájtó pont mozgatása</div>
+            <div style="margin-bottom: 8px;"><strong>🖱️ Bal egérgomb:</strong> Kiáradási pont mozgatása</div>
             <div style="margin-bottom: 8px;"><strong>🖱️ Jobb egérgomb:</strong> Kamera forgatása</div>
             <div style="margin-bottom: 8px;"><strong>🖱️ Egérgörgő:</strong> Zoom be/ki</div>
             <div style="margin-bottom: 8px;"><strong>⌨️ Nyilak/WASD:</strong> Kamera mozgatása</div>
             
             <h4 style="margin: 15px 0 10px 0; color: #88ff88;">Funkciók:</h4>
-            <div style="margin-bottom: 5px;"><strong>Intenzitás:</strong> Kibocsájtási sebesség</div>
+            <div style="margin-bottom: 5px;"><strong>Intenzitás:</strong> Kiáradási sebesség</div>
             <div style="margin-bottom: 5px;"><strong>Átlátszóság:</strong> Gömbök láthatósága (1=drótváz, 0=szilárd)</div>
             <div style="margin-bottom: 5px;"><strong>Forráspont sebessége X-tengely:</strong> Forráspont sebessége az X tengelyen</div>
             <div style="margin-bottom: 5px;"><strong>Forráspont sebessége Y-tengely:</strong> Forráspont sebessége az Y tengelyen</div>
-            <div style="margin-bottom: 5px;"><strong>Vízelem:</strong> Statikus kibocsájtás</div>
-            <div style="margin-bottom: 5px;"><strong>Tűzelem:</strong> Mozgó kibocsájtó pont</div>
-            <div style="margin-bottom: 5px;"><strong>Körmozgás:</strong> Körkörös mozgás az X-Z síkon</div>
-            <div style="margin-bottom: 5px;"><strong>Spirális mozgás:</strong> Körkörös + emelkedő mozgás</div>
+            <div style="margin-bottom: 5px;"><strong>Mozgástípusok:</strong> Kiáradási pont mozgás típusai</div>
+            
         </div>
     </div>
 
