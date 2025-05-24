@@ -135,7 +135,7 @@
 </head>
 <body>
     <div id="container">
-        <div id="version">Hullámtér Szimulátor Verzió: 1.1</div>
+        <div id="version">Hullámtér Szimulátor Verzió: 1.12</div>
         <div id="controls">
             <div class="control-group">
                 <label for="intensity">Kibocsájtási intenzitás:</label>
@@ -150,9 +150,15 @@
             </div>
             
             <div class="control-group">
-                <label for="sourceSpeed">Forráspont sebessége:</label>
-                <input type="range" id="sourceSpeed" min="0" max="0.5" step="0.001" value="0">
-                <div class="value-display" id="sourceSpeedValue">0.000</div>
+                <label for="sourceSpeed">Forráspont sebessége X-tengely:</label>
+                <input type="range" id="sourceSpeedX" min="0" max="0.5" step="0.001" value="0">
+                <div class="value-display" id="sourceSpeedXValue">0.000</div>
+            </div>
+
+            <div class="control-group">
+                <label for="sourceSpeedY">Forráspont sebessége Y-tengely:</label>
+                <input type="range" id="sourceSpeedY" min="0" max="0.5" step="0.001" value="0">
+                <div class="value-display" id="sourceSpeedYValue">0.000</div>
             </div>
             
             <div class="control-group">
@@ -183,7 +189,8 @@
             <h4 style="margin: 15px 0 10px 0; color: #88ff88;">Funkciók:</h4>
             <div style="margin-bottom: 5px;"><strong>Intenzitás:</strong> Kibocsájtási sebesség</div>
             <div style="margin-bottom: 5px;"><strong>Átlátszóság:</strong> Gömbök láthatósága (1=drótváz, 0=szilárd)</div>
-            <div style="margin-bottom: 5px;"><strong>Forráspont sebessége:</strong> Piros gömb mozgási sebessége</div>
+            <div style="margin-bottom: 5px;"><strong>Forráspont sebessége X-tengely:</strong> Forráspont sebessége az X tengelyen</div>
+            <div style="margin-bottom: 5px;"><strong>Forráspont sebessége Y-tengely:</strong> Forráspont sebessége az Y tengelyen</div>
             <div style="margin-bottom: 5px;"><strong>Vízelem:</strong> Statikus kibocsájtás</div>
             <div style="margin-bottom: 5px;"><strong>Tűzelem:</strong> Mozgó kibocsájtó pont</div>
             <div style="margin-bottom: 5px;"><strong>Körmozgás:</strong> Körkörös mozgás az X-Z síkon</div>
@@ -212,7 +219,8 @@
         // Beállítások
         let emissionIntensity = 0.1;
         let sphereOpacity = 0.5; // Alapértelmezett 0.5 átlátszóság
-        let sourceSpeed = 0.0;
+        let sourceSpeedX = 0; // Forráspont sebessége X-irányban
+        let sourceSpeedY = 0; // Forráspont sebessége Y-irányban
         let lastEmissionTime = 0;
         let movementType = 'water'; // 'water', 'fire', 'circular' vagy 'spiral'
         let emitterVelocity = 0; // Kibocsájtó pont sebessége x irányben
@@ -223,11 +231,12 @@
 
         // Sebesség szorzók a különböző mozgástípusokhoz (ezeket az értékeket lehet finomhangolni)
         const speedMultipliers = {
-            fire: 0.05,     // Tűzelem sebességének szorzója
-            circular: 0.03, // Körmozgás szögsebességének szorzója
-            spiral: 0.05   // Spirális mozgás általános sebességének szorzója
+            fire:     { x: 0.05, y: 0.05 }, // Tűzelem: x-sebesség szorzó, y-sebesség szorzó
+            circular: { x: 0.03, y: 0.03 }, // Körmozgás: x->szögsebesség szorzó, y->függőleges sebesség szorzó
+            spiral:   { x: 0.05, y: 0.05 }  // Spirál: x->alapsebesség (szög/sugár) szorzó, y->emelkedési sebesség szorzó
         };
-        let currentMovementTypeMultiplier = 0; // Az aktuálisan kiválasztott mozgástípus szorzója
+        let currentXMultiplier = 0; // Az aktuálisan kiválasztott mozgástípus X-irányú szorzója
+        let currentYMultiplier = 0; // Az aktuálisan kiválasztott mozgástípus Y-irányú szorzója
         
         // Inicializálás
         function init() {
@@ -280,15 +289,15 @@
             // Animáció indítása
             animate();
 
-            // Kezdeti currentMovementTypeMultiplier beállítása az alapértelmezett mozgástípushoz
-            if (movementType === 'fire') {
-                currentMovementTypeMultiplier = speedMultipliers.fire;
-            } else if (movementType === 'circular') {
-                currentMovementTypeMultiplier = speedMultipliers.circular;
-            } else if (movementType === 'spiral') {
-                currentMovementTypeMultiplier = speedMultipliers.spiral;
-            } else { // water
-                currentMovementTypeMultiplier = 0;
+            // Kezdeti X és Y szorzók beállítása az alapértelmezett mozgástípushoz
+            const initialMovementType = movementType; // A globális movementType változó használata itt biztonságosabb
+            console.log('Initial movement type for multipliers:', initialMovementType);
+            if (speedMultipliers[initialMovementType] && typeof speedMultipliers[initialMovementType] === 'object') {
+                currentXMultiplier = speedMultipliers[initialMovementType].x || 0;
+                currentYMultiplier = speedMultipliers[initialMovementType].y || 0;
+            } else { // water vagy nem definiált x/y
+                currentXMultiplier = 0;
+                currentYMultiplier = 0;
             }
         }
         
@@ -310,7 +319,8 @@
             // Csúszkák és gombok
             const intensitySlider = document.getElementById('intensity');
             const opacitySlider = document.getElementById('opacity');
-            const sourceSpeedSlider = document.getElementById('sourceSpeed');
+            const sourceSpeedXSlider = document.getElementById('sourceSpeedX');
+            const sourceSpeedYSlider = document.getElementById('sourceSpeedY');
             const movementTypeSelect = document.getElementById('movementType');
             const pauseBtn = document.getElementById('pauseBtn');
             const resetBtn = document.getElementById('resetBtn');
@@ -328,12 +338,16 @@
                 updateSphereMaterials();
             });
             
-            sourceSpeedSlider.addEventListener('input', (e) => {
-                const sliderValue = parseFloat(e.target.value);
-                // Exponenciális skálázás a lassú induláshoz
-                sourceSpeed = sliderValue; // sourceSpeed mostantól 0 és 0.5 között lesz (a csúszka min/max alapján)
-                document.getElementById('sourceSpeedValue').textContent = sliderValue.toFixed(3);
-                // A tényleges sebességet az animate függvény számolja a currentMovementTypeMultiplier és a sourceSpeed segítségével
+            sourceSpeedXSlider.addEventListener('input', (e) => {
+                sourceSpeedX = parseFloat(e.target.value);
+                document.getElementById('sourceSpeedXValue').textContent = sourceSpeedX.toFixed(3);
+                console.log('sourceSpeedX changed to:', sourceSpeedX);
+            });
+
+            sourceSpeedYSlider.addEventListener('input', (e) => {
+                sourceSpeedY = parseFloat(e.target.value);
+                document.getElementById('sourceSpeedYValue').textContent = sourceSpeedY.toFixed(3);
+                console.log('sourceSpeedY changed to:', sourceSpeedY);
             });
             
             movementTypeSelect.addEventListener('change', (e) => {
@@ -343,18 +357,18 @@
                 // Visszaállítjuk a körmozgás és spirális mozgás változóit
                 circleAngle = 0;
                 spiralHeight = 0;
-                
-                if (movementType === 'fire') {
-                    currentMovementTypeMultiplier = speedMultipliers.fire;
-                } else if (movementType === 'circular') {
-                    currentMovementTypeMultiplier = speedMultipliers.circular;
-                } else if (movementType === 'spiral') {
-                    currentMovementTypeMultiplier = speedMultipliers.spiral;
-                } else { // water
-                    currentMovementTypeMultiplier = 0;
+
+                // A globális 'movementType' változót használjuk, amit az eseménykezelő elején frissítünk
+                if (speedMultipliers[movementType] && typeof speedMultipliers[movementType] === 'object') {
+                    currentXMultiplier = speedMultipliers[movementType].x || 0;
+                    currentYMultiplier = speedMultipliers[movementType].y || 0;
+                } else { // water vagy nem definiált x/y
+                    currentXMultiplier = 0;
+                    currentYMultiplier = 0;
                 }
+                console.log('Movement type changed to:', movementType, 'New Multipliers X:', currentXMultiplier, 'Y:', currentYMultiplier);
                 emitterPoint.visible = (movementType !== 'water');
-                // A sourceSpeedSlider és sourceSpeed értékét nem bántjuk, megőrzi az aktuális csúszka pozíciót.
+                // A sourceSpeedXSlider/sourceSpeedYSlider és sourceSpeedX/sourceSpeedY értékét nem bántjuk, megőrzik az aktuális csúszka pozíciót.
             });
             
             pauseBtn.addEventListener('click', () => {
@@ -662,25 +676,25 @@
             // Kibocsájtó pont mozgatása a kiválasztott mozgástípus szerint
             if (!isPaused) {
                 if (movementType === 'fire') {
-                    // Folyamatos mozgás egy irányba a végtelenségig
-                    emitterPoint.position.x += sourceSpeed * currentMovementTypeMultiplier * emitterDirection;
+                    // console.log('Animating fire. SpeedX:', sourceSpeedX, 'MultX:', currentXMultiplier, 'SpeedY:', sourceSpeedY, 'MultY:', currentYMultiplier, 'Direction:', emitterDirection);
+                    emitterPoint.position.x += sourceSpeedX * currentXMultiplier * emitterDirection;
+                    emitterPoint.position.y += sourceSpeedY * currentYMultiplier; // Y mozgás hozzáadása
                 } 
                 else if (movementType === 'circular') {
-                    // Körmozgás az X-Z síkon
-                    circleAngle += sourceSpeed * currentMovementTypeMultiplier;
-                    const x = Math.cos(circleAngle) * circleRadius;
-                    const z = Math.sin(circleAngle) * circleRadius;
-                    emitterPoint.position.set(x, 0, z);
+                    circleAngle += sourceSpeedX * currentXMultiplier;
+                    const x_pos = Math.cos(circleAngle) * circleRadius;
+                    const z_pos = Math.sin(circleAngle) * circleRadius;
+                    emitterPoint.position.y += sourceSpeedY * currentYMultiplier; // Y elmozdulás hozzáadása
+                    emitterPoint.position.set(x_pos, emitterPoint.position.y, z_pos);
                 }
                 else if (movementType === 'spiral') {
-                    // Spirális mozgás - körmozgás + egyenletes emelkedés
-                    const baseSpiralSpeed = sourceSpeed * currentMovementTypeMultiplier;
-                    circleAngle += baseSpiralSpeed * 0.5; // A 0.5 és 0.8 arányokat megtartjuk, a szorzóval az általános sebességet hangoljuk
-                    const x = Math.cos(circleAngle) * circleRadius;
-                    const z = Math.sin(circleAngle) * circleRadius;
-                    spiralHeight += baseSpiralSpeed * 0.8;
+                    const baseAngularSpeed = sourceSpeedX * currentXMultiplier;
+                    circleAngle += baseAngularSpeed * 0.5; 
+                    const x_pos = Math.cos(circleAngle) * circleRadius;
+                    const z_pos = Math.sin(circleAngle) * circleRadius;
                     
-                    emitterPoint.position.set(x, spiralHeight, z);
+                    spiralHeight += sourceSpeedY * currentYMultiplier; // Y-slider vezérli az emelkedést
+                    emitterPoint.position.set(x_pos, spiralHeight, z_pos);
                 }
             }
             
