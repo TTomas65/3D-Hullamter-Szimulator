@@ -28,6 +28,57 @@
             padding: 20px;
             border-radius: 10px;
             color: white;
+            transition: height 0.3s ease;
+            overflow: hidden;
+            width: 440px; /* Fix szélesség beállítása, hogy összecsukáskor is megtartsa */
+        }
+        
+        #controls.collapsed {
+            height: 45px; /* Csak annyi magasság, hogy a gomb látszódjon */
+            min-width: 340px; /* Biztosítja, hogy a szélesség nem változik */
+            width: 340px; /* Fix szélesség összecsukott állapotban is */
+            overflow: hidden; /* Biztosítja, hogy semmi sem lóg ki */
+        }
+        
+        /* Minden gyermekelem elrejtése a panelen belül, kivéve a vezérlőgombot */
+        #controls.collapsed > * {
+            display: none !important;
+        }
+        
+        /* Biztosítjuk, hogy a gomb mindig látható marad */
+        #controls.collapsed #toggleControlsBtn {
+            display: flex !important;
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 999;
+        }
+        
+        /* Explicit módon elrejtjük a Körmozgás sugara csúszkát összecsukott állapotban */
+        #controls.collapsed #circleRadiusControlGroup {
+            display: none !important;
+        }
+        
+        #toggleControlsBtn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #4444ff;
+            color: white;
+            border: none;
+            width: 25px;
+            height: 25px;
+            border-radius: 50%;
+            cursor: pointer;
+            font-size: 16px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 101;
+        }
+        
+        #toggleControlsBtn:hover {
+            background: #6666ff;
         }
         
         #instructionsCloseBtn {
@@ -135,8 +186,9 @@
 </head>
 <body>
     <div id="container">
-        <div id="version">Hullámtér Szimulátor Verzió: 1.12</div>
+        <div id="version">Hullámtér Szimulátor Verzió: 1.15</div>
         <div id="controls">
+            <button id="toggleControlsBtn" title="Panel összezárása/kinyitása">▲</button>
             <div class="control-group">
                 <label for="intensity">Kibocsájtási intenzitás:</label>
                 <input type="range" id="intensity" min="0" max="2" step="0.1" value="0.1">
@@ -791,6 +843,34 @@
             window.location.reload();
         });
         controlButtonsGroup.appendChild(reloadBtn);
+        
+        // Panel összezárás/kinyitás gomb eseménykezelője
+        const toggleControlsBtn = document.getElementById('toggleControlsBtn');
+        const controlsPanel = document.getElementById('controls');
+        
+        toggleControlsBtn.addEventListener('click', function() {
+            controlsPanel.classList.toggle('collapsed');
+            
+            // Gomb szimbólumának változtatása az állapot alapján
+            if (controlsPanel.classList.contains('collapsed')) {
+                toggleControlsBtn.textContent = '▼';
+                toggleControlsBtn.title = 'Panel kinyitása';
+                // Panel állapotának mentése
+                sessionStorage.setItem('controlsPanelCollapsed', 'true');
+            } else {
+                toggleControlsBtn.textContent = '▲';
+                toggleControlsBtn.title = 'Panel összezárása';
+                // Panel állapotának mentése
+                sessionStorage.setItem('controlsPanelCollapsed', 'false');
+            }
+        });
+        
+        // Panel állapotának betöltése az előző állapotból
+        if (sessionStorage.getItem('controlsPanelCollapsed') === 'true') {
+            controlsPanel.classList.add('collapsed');
+            toggleControlsBtn.textContent = '▼';
+            toggleControlsBtn.title = 'Panel kinyitása';
+        }
         
         // Ellenőrizzük, hogy újratöltés történt-e, és ha igen, állítsuk a mozgástípust Vízelemre
         if (sessionStorage.getItem('resetToWater') === 'true') {
