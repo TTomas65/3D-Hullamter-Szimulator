@@ -220,6 +220,14 @@
         let circleRadius = 4; // Körmozgás sugara (ThreeJS egységben, nem pixelben)
         let circleAngle = 0; // Körmozgás szöge
         let spiralHeight = 0; // Spirális mozgás magassága
+
+        // Sebesség szorzók a különböző mozgástípusokhoz (ezeket az értékeket lehet finomhangolni)
+        const speedMultipliers = {
+            fire: 0.05,     // Tűzelem sebességének szorzója
+            circular: 0.03, // Körmozgás szögsebességének szorzója
+            spiral: 0.05   // Spirális mozgás általános sebességének szorzója
+        };
+        let currentMovementTypeMultiplier = 0; // Az aktuálisan kiválasztott mozgástípus szorzója
         
         // Inicializálás
         function init() {
@@ -271,6 +279,17 @@
             
             // Animáció indítása
             animate();
+
+            // Kezdeti currentMovementTypeMultiplier beállítása az alapértelmezett mozgástípushoz
+            if (movementType === 'fire') {
+                currentMovementTypeMultiplier = speedMultipliers.fire;
+            } else if (movementType === 'circular') {
+                currentMovementTypeMultiplier = speedMultipliers.circular;
+            } else if (movementType === 'spiral') {
+                currentMovementTypeMultiplier = speedMultipliers.spiral;
+            } else { // water
+                currentMovementTypeMultiplier = 0;
+            }
         }
         
         function setupEventListeners() {
@@ -312,11 +331,9 @@
             sourceSpeedSlider.addEventListener('input', (e) => {
                 const sliderValue = parseFloat(e.target.value);
                 // Exponenciális skálázás a lassú induláshoz
-                sourceSpeed = Math.pow(sliderValue * 2, 2) * 0.01; // Sokkal lassabb progresszió
+                sourceSpeed = sliderValue; // sourceSpeed mostantól 0 és 0.5 között lesz (a csúszka min/max alapján)
                 document.getElementById('sourceSpeedValue').textContent = sliderValue.toFixed(3);
-                if (movementType === 'fire') {
-                    emitterVelocity = sourceSpeed;
-                }
+                // A tényleges sebességet az animate függvény számolja a currentMovementTypeMultiplier és a sourceSpeed segítségével
             });
             
             movementTypeSelect.addEventListener('change', (e) => {
@@ -328,26 +345,16 @@
                 spiralHeight = 0;
                 
                 if (movementType === 'fire') {
-                    // Tűzelem esetén a forráspont sebessége 0.3
-                    sourceSpeedSlider.value = 0.3; 
-                    const sliderValue = 0.3;
-                    sourceSpeed = Math.pow(sliderValue * 2, 2) * 0.01;
-                    emitterVelocity = sourceSpeed;
-                    document.getElementById('sourceSpeedValue').textContent = sliderValue.toFixed(3);
-                } else if (movementType === 'circular' || movementType === 'spiral') {
-                    // Körmozgás és spirális mozgás esetén is beállítunk egy alapértelmezett sebességet
-                    sourceSpeedSlider.value = 0.1;
-                    const sliderValue = 0.1;
-                    sourceSpeed = Math.pow(sliderValue * 2, 2) * 0.01;
-                    document.getElementById('sourceSpeedValue').textContent = sliderValue.toFixed(3);
-                    // Biztosítjuk, hogy a kibocsájtó pont látható legyen
-                    emitterPoint.visible = true;
-                } else {
-                    emitterVelocity = 0;
-                    sourceSpeedSlider.value = 0;
-                    sourceSpeed = 0;
-                    document.getElementById('sourceSpeedValue').textContent = '0.000';
+                    currentMovementTypeMultiplier = speedMultipliers.fire;
+                } else if (movementType === 'circular') {
+                    currentMovementTypeMultiplier = speedMultipliers.circular;
+                } else if (movementType === 'spiral') {
+                    currentMovementTypeMultiplier = speedMultipliers.spiral;
+                } else { // water
+                    currentMovementTypeMultiplier = 0;
                 }
+                emitterPoint.visible = (movementType !== 'water');
+                // A sourceSpeedSlider és sourceSpeed értékét nem bántjuk, megőrzi az aktuális csúszka pozíciót.
             });
             
             pauseBtn.addEventListener('click', () => {
@@ -656,23 +663,22 @@
             if (!isPaused) {
                 if (movementType === 'fire') {
                     // Folyamatos mozgás egy irányba a végtelenségig
-                    emitterPoint.position.x += emitterVelocity * emitterDirection;
+                    emitterPoint.position.x += sourceSpeed * currentMovementTypeMultiplier * emitterDirection;
                 } 
                 else if (movementType === 'circular') {
                     // Körmozgás az X-Z síkon
-                    circleAngle += 0.01 + sourceSpeed * 0.1; // Alapsebesség + felhasználói sebesség
+                    circleAngle += sourceSpeed * currentMovementTypeMultiplier;
                     const x = Math.cos(circleAngle) * circleRadius;
                     const z = Math.sin(circleAngle) * circleRadius;
                     emitterPoint.position.set(x, 0, z);
                 }
                 else if (movementType === 'spiral') {
                     // Spirális mozgás - körmozgás + egyenletes emelkedés
-                    circleAngle += 0.01 + sourceSpeed * 0.1; // Alapsebesség + felhasználói sebesség
+                    const baseSpiralSpeed = sourceSpeed * currentMovementTypeMultiplier;
+                    circleAngle += baseSpiralSpeed * 0.5; // A 0.5 és 0.8 arányokat megtartjuk, a szorzóval az általános sebességet hangoljuk
                     const x = Math.cos(circleAngle) * circleRadius;
                     const z = Math.sin(circleAngle) * circleRadius;
-                    
-                    // Y tengelyen egyenletes emelkedés
-                    spiralHeight += 0.02 + sourceSpeed * 0.1;
+                    spiralHeight += baseSpiralSpeed * 0.8;
                     
                     emitterPoint.position.set(x, spiralHeight, z);
                 }
