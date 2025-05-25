@@ -397,6 +397,38 @@
         input[type="range"]:hover {
             background: linear-gradient(to right, #334155 0%, #475569 100%);
         }
+        
+        /* Elválasztó vonal */
+        .divider {
+            height: 1px;
+            background: linear-gradient(to right, rgba(148, 163, 184, 0.1) 0%, rgba(148, 163, 184, 0.3) 50%, rgba(148, 163, 184, 0.1) 100%);
+            margin: 16px 0;
+            width: 100%;
+        }
+        
+        /* Gombcsoportok */
+        .button-group {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+        
+        .button-group button {
+            flex: 1;
+            min-width: 120px;
+            margin-right: 0;
+            white-space: nowrap;
+            padding: 10px 12px;
+            font-size: 13px;
+        }
+        
+        /* Aktív gombok stílusa */
+        button.active {
+            background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+            box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.5);
+            transform: translateY(-1px);
+        }
     </style>
 </head>
 <body>
@@ -404,7 +436,7 @@
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.19</span>
+                <span class="version-number">v1.20</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -456,10 +488,29 @@
                 </select>
             </div>
             
-            <div class="control-group">
+            <div class="control-group button-group">
                 <button id="pauseBtn">Szünet</button>
                 <button id="resetBtn">Újrakezd</button>
+                <button id="reloadBtn">Újratöltés</button>
+            </div>
+            
+            <div class="divider"></div>
+            
+            <div class="control-group button-group">
                 <button id="cameraResetBtn">Kamera Reset</button>
+                <button id="topViewBtn">Felülnézet</button>
+                <button id="bottomViewBtn">Alulnézet</button>
+            </div>
+            
+            <div class="control-group button-group">
+                <button id="rightViewBtn">Oldalnézet jobb</button>
+                <button id="leftViewBtn">Oldalnézet bal</button>
+                <button id="rotateViewBtn">Forgás</button>
+            </div>
+            
+            <div class="control-group button-group">
+                <button id="followSourceBtn1">Forráspont követése I.</button>
+                <button id="followSourceBtn2">Forráspont követése II.</button>
             </div>
         </div>
         
@@ -501,6 +552,12 @@
         let cameraCenter = { x: 0, y: 0, z: 0 }; // Kamera középpontja
         let keysPressed = {};
         let isPaused = false;
+        
+        // Kamera követés és forgás változók
+        let isCameraRotating = false;
+        let isFollowingSource = false;
+        let followMode = 0; // 0: nincs követés, 1: I. mód, 2: II. mód
+        let cameraRotationSpeed = 0.005; // Kamera forgási sebessége
         
         // Beállítások
         let emissionIntensity = 0.1;
@@ -720,6 +777,64 @@
                 resetCamera();
             });
             
+            // Új kamera nézet gombok eseménykezelői
+            document.getElementById('topViewBtn').addEventListener('click', () => {
+                setTopView();
+                // Kikapcsoljuk a forgást és követést
+                isCameraRotating = false;
+                isFollowingSource = false;
+                document.getElementById('rotateViewBtn').classList.remove('active');
+                document.getElementById('followSourceBtn').classList.remove('active');
+            });
+            
+            document.getElementById('bottomViewBtn').addEventListener('click', () => {
+                setBottomView();
+                // Kikapcsoljuk a forgást és követést
+                isCameraRotating = false;
+                isFollowingSource = false;
+                document.getElementById('rotateViewBtn').classList.remove('active');
+                document.getElementById('followSourceBtn').classList.remove('active');
+            });
+            
+            document.getElementById('rightViewBtn').addEventListener('click', () => {
+                setRightView();
+                // Kikapcsoljuk a forgást és követést
+                isCameraRotating = false;
+                isFollowingSource = false;
+                document.getElementById('rotateViewBtn').classList.remove('active');
+                document.getElementById('followSourceBtn').classList.remove('active');
+            });
+            
+            document.getElementById('leftViewBtn').addEventListener('click', () => {
+                setLeftView();
+                // Kikapcsoljuk a forgást és követést
+                isCameraRotating = false;
+                isFollowingSource = false;
+                document.getElementById('rotateViewBtn').classList.remove('active');
+                document.getElementById('followSourceBtn').classList.remove('active');
+            });
+            
+            document.getElementById('rotateViewBtn').addEventListener('click', () => {
+                toggleCameraRotation();
+            });
+            
+            document.getElementById('followSourceBtn1').addEventListener('click', () => {
+                toggleSourceFollowingMode1();
+            });
+            
+            document.getElementById('followSourceBtn2').addEventListener('click', () => {
+                toggleSourceFollowingMode2();
+            });
+            
+            // Újratöltés gomb eseménykezelője
+            document.getElementById('reloadBtn').addEventListener('click', () => {
+                // Ez a beállítás a sessionStorage-ban tárolódik, amit az oldal betöltésekor olvasunk ki
+                sessionStorage.setItem('resetToWater', 'true');
+                
+                // Az oldal újratöltése, ami minden változót alapállapotba állít
+                window.location.reload();
+            });
+            
             instructionsCloseBtn.addEventListener('click', () => {
                 document.getElementById('instructions').style.display = 'none';
             });
@@ -834,7 +949,102 @@
             cameraAngleX = 0;
             cameraAngleY = 0;
             cameraCenter = { x: 0, y: 0, z: 0 };
+            isCameraRotating = false;
+            isFollowingSource = false;
             updateCameraPosition();
+        }
+        
+        function setTopView() {
+            // Felülnézet: X tengely körüli -90 fokos elfordítás (felülről nézve)
+            cameraAngleX = -Math.PI/2 + 0.1; // +0.1 hogy ne legyen teljesen merőleges
+            updateCameraPosition();
+        }
+        
+        function setBottomView() {
+            // Alulnézet: X tengely körüli +90 fokos elfordítás (alulról nézve)
+            cameraAngleX = Math.PI/2 - 0.1; // -0.1 hogy ne legyen teljesen merőleges
+            updateCameraPosition();
+        }
+        
+        function setRightView() {
+            // Jobb oldalnézet: Y tengely körüli -90 fokos elfordítás
+            cameraAngleX = 0;
+            cameraAngleY = -Math.PI/2;
+            updateCameraPosition();
+        }
+        
+        function setLeftView() {
+            // Bal oldalnézet: Y tengely körüli +90 fokos elfordítás
+            cameraAngleX = 0;
+            cameraAngleY = Math.PI/2;
+            updateCameraPosition();
+        }
+        
+        function toggleCameraRotation() {
+            // Kamera forgás be/kikapcsolása
+            isCameraRotating = !isCameraRotating;
+            
+            // Ha bekapcsoljuk a forgást, kapcsoljuk ki a forráspont követést
+            if (isCameraRotating) {
+                isFollowingSource = false;
+                document.getElementById('followSourceBtn').classList.remove('active');
+                document.getElementById('rotateViewBtn').classList.add('active');
+            } else {
+                document.getElementById('rotateViewBtn').classList.remove('active');
+            }
+        }
+        
+        function toggleSourceFollowingMode1() {
+            // Forráspont követés I. mód be/kikapcsolása
+            if (followMode === 1) {
+                // Ha már I. módban vagyunk, kikapcsoljuk
+                followMode = 0;
+                isFollowingSource = false;
+                // Visszaállítjuk az eredeti távolságot
+                cameraDistance = 5;
+                document.getElementById('followSourceBtn1').classList.remove('active');
+            } else {
+                // Beállítjuk az I. módot
+                followMode = 1;
+                isFollowingSource = true;
+                isCameraRotating = false;
+                // Normál távolság a forrásponttól
+                cameraDistance = 5;
+                // Alaphelyzetbe állítjuk a kamera szögeket
+                cameraAngleX = 0;
+                cameraAngleY = 0;
+                
+                // Kikapcsoljuk a másik módot és a forgást
+                document.getElementById('followSourceBtn2').classList.remove('active');
+                document.getElementById('rotateViewBtn').classList.remove('active');
+                document.getElementById('followSourceBtn1').classList.add('active');
+            }
+        }
+        
+        function toggleSourceFollowingMode2() {
+            // Forráspont követés II. mód be/kikapcsolása
+            if (followMode === 2) {
+                // Ha már II. módban vagyunk, kikapcsoljuk
+                followMode = 0;
+                isFollowingSource = false;
+                // Visszaállítjuk az eredeti távolságot
+                cameraDistance = 5;
+                document.getElementById('followSourceBtn2').classList.remove('active');
+            } else {
+                // Beállítjuk a II. módot
+                followMode = 2;
+                isFollowingSource = true;
+                isCameraRotating = false;
+                // Közelebbi kamera távolság a forrásponthoz
+                cameraDistance = 2; // Sokkal közelebb a forrásponthoz
+                // Enyhén felülről nézzük a forráspontot
+                cameraAngleX = -0.3;
+                
+                // Kikapcsoljuk a másik módot és a forgást
+                document.getElementById('followSourceBtn1').classList.remove('active');
+                document.getElementById('rotateViewBtn').classList.remove('active');
+                document.getElementById('followSourceBtn2').classList.add('active');
+            }
         }
         
         function updateMousePosition(event) {
@@ -1008,6 +1218,38 @@
             
             // Billentyűzetes kamera mozgatás kezelése
             handleKeyboardMovement();
+            
+            // Kamera forgás kezelése
+            if (isCameraRotating) {
+                cameraAngleY += cameraRotationSpeed;
+                updateCameraPosition();
+            }
+            
+            // Forráspont követés kezelése
+            if (isFollowingSource && !isPaused) {
+                // A kamera középpontját a forráspontra állítjuk
+                cameraCenter.x = emitterPoint.position.x;
+                cameraCenter.y = emitterPoint.position.y;
+                cameraCenter.z = emitterPoint.position.z;
+                
+                // II. mód: Közeli követés, mozgásirány-alapu kamera
+                if (followMode === 2 && movementType !== 'water') {
+                    // Mozgás irányának meghatározása
+                    if (movementType === 'fire') {
+                        // Tűzelem esetén a mozgás iránya alapján állítjuk be a kamera szögét
+                        cameraAngleY = (sourceSpeedX > 0) ? Math.PI : 0; // Ha jobbra mozog, balról nézzük, ha balra, akkor jobbról
+                    } else if (movementType === 'circular' || movementType === 'spiral') {
+                        // Körmozgás esetén a körön belülről nézzük
+                        // A körmozgás szögével ellentétes irányba néz a kamera
+                        cameraAngleY = circleAngle + Math.PI;
+                    }
+                }
+                
+                // I. mód: Egyszerű követés, fix kamera szögekkel
+                // Ebben a módban nem változtatjuk a kamera szögeket, csak a középpontot követjük
+                
+                updateCameraPosition();
+            }
             
             // Kibocsájtó pont mozgatása a kiválasztott mozgástípus szerint
             if (!isPaused) {
