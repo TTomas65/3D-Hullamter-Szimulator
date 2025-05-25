@@ -652,6 +652,9 @@
             });
             
             movementTypeSelect.addEventListener('change', (e) => {
+                // Először töröljük a jelenetet
+                resetScene();
+                
                 movementType = e.target.value;
                 // Visszaállítjuk a kibocsájtó pont pozícióját
                 emitterPoint.position.set(0, 0, 0);
