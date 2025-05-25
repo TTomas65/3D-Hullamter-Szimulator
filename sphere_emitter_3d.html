@@ -535,7 +535,7 @@
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.24</span>
+                <span class="version-number">v1.25</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -1039,14 +1039,17 @@
         }
         
         
+
 function handleKeyboardMovement() {
     const moveSpeed = 0.1;
 
-    // Új irányvektorok a kamera koordinátáiban
+    // Aktuális irányvektorok a kamera koordinátái szerint
     const forward = new THREE.Vector3();
-    camera.getWorldDirection(forward);
+    camera.getWorldDirection(forward).normalize();          // Nézeti irány
     const right = new THREE.Vector3();
-    right.crossVectors(forward, camera.up).normalize();
+    right.crossVectors(forward, camera.up).normalize();     // Jobb irány (képernyő jobbra)
+    const upDir = new THREE.Vector3();
+    upDir.crossVectors(right, forward).normalize();         // Képernyő felfelé (kamera‑koordináta Y)
 
     /* Bal / Jobb : ArrowLeft / ArrowRight vagy A / D */
     if (keysPressed['ArrowLeft'] || keysPressed['KeyA']) {
@@ -1060,12 +1063,16 @@ function handleKeyboardMovement() {
         cameraCenter.z += right.z * moveSpeed;
     }
 
-    /* Fel / Le : ArrowUp / ArrowDown – függőleges mozgás a világ Y‑tengelyen */
+    /* Fel / Le : ArrowUp / ArrowDown – a kamera aktuális „felfelé” irányában */
     if (keysPressed['ArrowUp']) {
-        cameraCenter.y += moveSpeed;
+        cameraCenter.x += upDir.x * moveSpeed;
+        cameraCenter.y += upDir.y * moveSpeed;
+        cameraCenter.z += upDir.z * moveSpeed;
     }
     if (keysPressed['ArrowDown']) {
-        cameraCenter.y -= moveSpeed;
+        cameraCenter.x -= upDir.x * moveSpeed;
+        cameraCenter.y -= upDir.y * moveSpeed;
+        cameraCenter.z -= upDir.z * moveSpeed;
     }
 
     /* Előre / Hátra : W / S billentyű */
@@ -1082,6 +1089,7 @@ function handleKeyboardMovement() {
 
     updateCameraPosition();
 }
+
 
         
         function onMouseWheel(event) {
