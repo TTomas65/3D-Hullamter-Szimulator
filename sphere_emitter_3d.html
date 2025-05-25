@@ -25,7 +25,7 @@
         
         #controls {
             position: absolute;
-            top: 24px;
+            top: 12px;
             left: 24px;
             z-index: 100;
             background: linear-gradient(135deg, rgba(15, 23, 42, 1) 0%, rgba(30, 41, 59, 1) 100%);
@@ -429,20 +429,86 @@
             box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.5);
             transform: translateY(-1px);
         }
-    </style>
+    
+        /* ================= EXTRÁK PANEL ================= */
+        #extras {
+            position: absolute;
+            top: 12px;
+            left: 540px;
+            z-index: 110;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 1) 0%, rgba(30, 41, 59, 1) 100%);
+            backdrop-filter: blur(15px);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            padding: 24px;
+            border-radius: 16px;
+            color: #f8fafc;
+            transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+            overflow: hidden;
+            width: 260px;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
+        }
+
+        #extras.collapsed {
+            height: 70px;
+            min-width: 260px;
+            width: 260px;
+            padding: 16px 24px;
+        }
+
+        #extras.collapsed > *:not(.panel-header) {
+            opacity: 0;
+            transform: translateY(-10px);
+            pointer-events: none;
+        }
+
+        #extras.collapsed .panel-header {
+            margin-bottom: 0;
+        }
+
+        #extras.collapsed #toggleExtrasBtn {
+            transform: rotate(180deg);
+        }
+
+</style>
 </head>
 <body>
     <div id="container">
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.21</span>
+                <span class="version-number">v1.22</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
             </a>
         </div>
-        <div id="controls">
+        
+        <div id="extras" class="collapsed">
+            <div class="panel-header">
+                <div class="panel-title">✨ Extrák</div>
+                <button id="toggleExtrasBtn" title="Panel összezárása/kinyitása">▼</button>
+            </div>
+            <div class="control-group button-group">
+                <button id="clipXBtn">Metszet&nbsp;X</button>
+                <button id="clipYBtn">Metszet&nbsp;Y</button>
+            </div>
+
+            <!-- Clipping plane sliders -->
+            <div id="clipXSliderGroup" class="control-group" style="display:none;">
+                <label for="clipXSlider">Metszet pozíció X:</label>
+                <input type="range" id="clipXSlider" min="-5" max="5" step="0.1" value="0">
+                <div class="value-display" id="clipXSliderValue">0.0</div>
+            </div>
+            <div id="clipYSliderGroup" class="control-group" style="display:none;">
+                <label for="clipYSlider">Metszet pozíció Y:</label>
+                <input type="range" id="clipYSlider" min="-5" max="5" step="0.1" value="0">
+                <div class="value-display" id="clipYSliderValue">0.0</div>
+            </div>
+
+        </div>
+
+
+<div id="controls">
             <div class="panel-header">
                 <div class="panel-title">Irányító Panel</div>
                 <button id="toggleControlsBtn" title="Panel összezárása/kinyitása"></button>
@@ -1081,8 +1147,8 @@
             // Átlátszó kék felületi anyag - PhongMaterial a fényes felületért (mint a piros gömb)
             const baseMaterial = new THREE.MeshPhongMaterial({
                 color: 0x6666ff,
-                transparent: true,
-                opacity: 1 - sphereOpacity, // Fordított logika
+                transparent: sphereOpacity > 0, // Csak akkor átlátszó, ha a csúszka nem 0-nál van
+                opacity: sphereOpacity === 0 ? 1.0 : 1 - sphereOpacity, // 0-nál teljesen átlátszatlan
                 shininess: 80,
                 specular: 0x444444,
                 side: THREE.DoubleSide,
@@ -1131,21 +1197,33 @@
             spheres.forEach(sphere => {
                 const userData = sphere.userData;
                 if (userData.baseMaterial && userData.wireframeMaterial && userData.baseMesh) {
+                    // Fokozatos átlátszóság csökkentése az idő múlásával
+                    const ageFactor = Math.min(userData.life * 0.005, 0.8);
                     
                     // Ha az átlátszóság 1 (csúszka jobb szélén), akkor csak a wireframe látszik
                     if (sphereOpacity === 1) {
                         userData.baseMesh.visible = false;
-                        userData.wireframeMaterial.opacity = 1.0;
+                        const wireframeOpacity = 1.0 * (1 - ageFactor * 0.01);
+                        userData.wireframeMaterial.opacity = Math.max(wireframeOpacity, 0.2);
                     } else {
                         // Ha az átlátszóság kisebb mint 1, akkor mindkét anyag látszik
                         userData.baseMesh.visible = true;
                         
-                        // Alap anyag átlátszóságának beállítása az átlátszóság értéke alapján
-                        userData.baseMaterial.opacity = sphereOpacity;
+                        // Alap anyag átlátszóságának frissítése - szilárd felület
+                        // Ha a csúszka 0-nál van, akkor teljesen átlátszatlan (opacity = 1.0)
+                        // Egyébként az életkor alapján csökken az átlátszatlanság
+                        let baseOpacity;
+                        if (sphereOpacity === 0) {
+                            baseOpacity = 1.0; // Teljesen átlátszatlan
+                        } else {
+                            baseOpacity = (1 - sphereOpacity) * (1 - ageFactor);
+                        }
+                        userData.baseMaterial.opacity = Math.max(baseOpacity, 0.0);
                         userData.baseMaterial.needsUpdate = true;
                         
                         // Wireframe átlátszóságának frissítése
-                        userData.wireframeMaterial.opacity = 1.0;
+                        const wireframeOpacity = 1.0 * (1 - ageFactor * 0.5);
+                        userData.wireframeMaterial.opacity = Math.max(wireframeOpacity, 0.2);
                     }
                     
                     userData.wireframeMaterial.needsUpdate = true;
@@ -1191,32 +1269,11 @@
                 
                 // Élettartam növelése
                 userData.life++;
-                
-                // Fokozatos átlátszóság csökkentése az idő múlásával
-                const ageFactor = Math.min(userData.life * 0.005, 0.8);
-                
-                // Frissítjük mindkét anyagot
-                if (userData.baseMaterial && userData.wireframeMaterial && userData.baseMesh) {
-                    
-                    // Ha az átlátszóság 1, akkor csak a wireframe látszik
-                    if (sphereOpacity === 1) {
-                        userData.baseMesh.visible = false;
-                        const wireframeOpacity = 1.0 * (1 - ageFactor * 0.5);
-                        userData.wireframeMaterial.opacity = Math.max(wireframeOpacity, 0.2);
-                    } else {
-                        // Ha az átlátszóság kisebb mint 1, akkor mindkét anyag látszik
-                        userData.baseMesh.visible = true;
-                        
-                        // Alap anyag átlátszóságának frissítése - szilárd felület
-                        const baseOpacity = (1 - sphereOpacity) * (1 - ageFactor);
-                        userData.baseMaterial.opacity = Math.max(baseOpacity, 0.0);
-                        
-                        // Wireframe átlátszóságának frissítése
-                        const wireframeOpacity = 1.0 * (1 - ageFactor * 0.5);
-                        userData.wireframeMaterial.opacity = Math.max(wireframeOpacity, 0.2);
-                    }
-                }
             }
+            
+            // Frissítjük az összes gömb átlátszóságát az updateSphereMaterials függvénnyel
+            // Ez biztosítja, hogy a szünet és futás közben is ugyanaz legyen a megjelenítés
+            updateSphereMaterials();
         }
         
         function animate() {
@@ -1350,6 +1407,176 @@
             
             console.log('Mozgástípus Vízelemre állítva az újratöltés után.');
         }
-    </script>
+    
+// ====== MODIFIED TRANSPARENCY LOGIC (2025-05-25) ======
+function updateSphereMaterials() {
+    spheres.forEach(sphere => {
+        const userData = sphere.userData;
+        if (userData.baseMaterial && userData.wireframeMaterial && userData.baseMesh) {
+            // Linear mapping: slider 0 -> fully opaque, 1 -> fully transparent base (wireframe only)
+            const baseOpacity = 1 - sphereOpacity;
+
+            // Solid surface visibility & properties
+            userData.baseMesh.visible = baseOpacity > 0.02;      // hide when virtually transparent
+            userData.baseMaterial.opacity = baseOpacity;
+            userData.baseMaterial.transparent = sphereOpacity > 0;
+            userData.baseMaterial.needsUpdate = true;
+
+            // Wireframe is always visible, with gentle opacity
+            userData.wireframeMaterial.opacity = 0.9;
+            userData.wireframeMaterial.needsUpdate = true;
+        }
+    });
+}
+
+// New createSphere that keeps transparency constant while sphere grows
+function createSphere() {
+    // High‑resolution geometry for smoother shading
+    const geometry = new THREE.SphereGeometry(0.1, 32, 24);
+
+    // Base (solid) material
+    const baseMaterial = new THREE.MeshPhongMaterial({
+        color: 0x6666ff,
+        transparent: sphereOpacity > 0,
+        opacity: 1 - sphereOpacity,      // linear mapping
+        shininess: 80,
+        specular: 0x444444,
+        side: THREE.DoubleSide
+    });
+
+    // Wireframe overlay
+    const wireframeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x404040,
+        wireframe: true,
+        transparent: false,
+        opacity: 1.0,
+        depthTest: true
+    });
+
+    // Assemble sphere
+    const sphere = new THREE.Group();
+    const baseSphereMesh = new THREE.Mesh(geometry, baseMaterial);
+    const wireframeSphereMesh = new THREE.Mesh(geometry, wireframeMaterial);
+    sphere.add(baseSphereMesh);
+    sphere.add(wireframeSphereMesh);
+
+    // Initial position at emitter
+    sphere.position.copy(emitterPoint.position);
+
+    // Metadata for animation (note: opacity no longer varies with life)
+    sphere.userData = {
+        centerPosition: emitterPoint.position.clone(),
+        scale: 0.1,
+        growthRate: 0.02,
+        life: 0,
+        baseMaterial,
+        wireframeMaterial,
+        baseMesh: baseSphereMesh,
+        wireframeMesh: wireframeSphereMesh
+    };
+
+    scene.add(sphere);
+    spheres.push(sphere);
+}
+// ====== END OF MODIFICATIONS ======
+
+
+// ====== CLIPPING PLANES AND EXTRÁK PANEL (2025-05-25) ======
+// Clipping plane variables
+let clipXActive = false;
+let clipYActive = false;
+const planeX = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);  // Keep negative X side
+const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);  // Keep negative Y side
+
+function updateClipping() {
+    const planes = [];
+    if (clipXActive) planes.push(planeX);
+    if (clipYActive) planes.push(planeY);
+    renderer.clippingPlanes = planes;
+    renderer.localClippingEnabled = planes.length > 0;
+}
+
+// Extras panel collapse handler
+const toggleExtrasBtn = document.getElementById('toggleExtrasBtn');
+const extrasPanel = document.getElementById('extras');
+toggleExtrasBtn.addEventListener('click', () => {
+    extrasPanel.classList.toggle('collapsed');
+    if (extrasPanel.classList.contains('collapsed')) {
+        toggleExtrasBtn.textContent = '▼';
+        toggleExtrasBtn.title = 'Panel kinyitása';
+    } else {
+        toggleExtrasBtn.textContent = '▲';
+        toggleExtrasBtn.title = 'Panel összezárása';
+    }
+});
+
+
+
+clipYBtn.addEventListener('click', () => {
+    clipYActive = !clipYActive;
+    clipYBtn.classList.toggle('active', clipYActive);
+    updateClipping();
+});
+
+
+// ====== Updated clipping buttons with sliders (2025‑05‑25) ======
+const clipXSlider = document.getElementById('clipXSlider');
+const clipYSlider = document.getElementById('clipYSlider');
+const clipXSliderGroup = document.getElementById('clipXSliderGroup');
+const clipYSliderGroup = document.getElementById('clipYSliderGroup');
+
+// Swap button functionality
+clipXBtn.addEventListener('click', () => {
+    clipYActive = !clipYActive;                       // toggle Y-plane
+    clipXBtn.classList.toggle('active', clipYActive);
+    if (clipYActive) {
+        clipXSliderGroup.style.display = 'block';
+    } else {
+        clipXSliderGroup.style.display = 'none';
+        clipXSlider.value = 0;
+        clipXSliderValue.textContent = '0.0';
+        planeY.constant = 0;
+    }
+    updateClipping();
+});
+
+clipYBtn.addEventListener('click', () => {
+    clipXActive = !clipXActive;                       // toggle X-plane
+    clipYBtn.classList.toggle('active', clipXActive);
+    if (clipXActive) {
+        clipYSliderGroup.style.display = 'block';
+    } else {
+        clipYSliderGroup.style.display = 'none';
+        clipYSlider.value = 0;
+        clipYSliderValue.textContent = '0.0';
+        planeX.constant = 0;
+    }
+    updateClipping();
+});
+
+// Slider movement
+clipXSlider.addEventListener('input', () => {
+    const val = parseFloat(clipXSlider.value);
+    planeY.constant = -val;
+    clipXSliderValue.textContent = val.toFixed(1);
+    updateClipping();
+});
+clipYSlider.addEventListener('input', () => {
+    const val = parseFloat(clipYSlider.value);
+    planeX.constant = -val;
+    clipYSliderValue.textContent = val.toFixed(1);
+    updateClipping();
+});
+
+// Initial arrow state
+if (extrasPanel.classList.contains('collapsed')) {
+    toggleExtrasBtn.textContent = '▼';
+    toggleExtrasBtn.title = 'Panel kinyitása';
+} else {
+    toggleExtrasBtn.textContent = '▲';
+    toggleExtrasBtn.title = 'Panel összezárása';
+}
+
+</script>
 </body>
 </html>
