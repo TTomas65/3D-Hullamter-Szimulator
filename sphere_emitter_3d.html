@@ -436,7 +436,7 @@
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.20</span>
+                <span class="version-number">v1.21</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -784,7 +784,8 @@
                 isCameraRotating = false;
                 isFollowingSource = false;
                 document.getElementById('rotateViewBtn').classList.remove('active');
-                document.getElementById('followSourceBtn').classList.remove('active');
+                document.getElementById('followSourceBtn1').classList.remove('active');
+                document.getElementById('followSourceBtn2').classList.remove('active');
             });
             
             document.getElementById('bottomViewBtn').addEventListener('click', () => {
@@ -793,7 +794,8 @@
                 isCameraRotating = false;
                 isFollowingSource = false;
                 document.getElementById('rotateViewBtn').classList.remove('active');
-                document.getElementById('followSourceBtn').classList.remove('active');
+                document.getElementById('followSourceBtn1').classList.remove('active');
+                document.getElementById('followSourceBtn2').classList.remove('active');
             });
             
             document.getElementById('rightViewBtn').addEventListener('click', () => {
@@ -802,7 +804,8 @@
                 isCameraRotating = false;
                 isFollowingSource = false;
                 document.getElementById('rotateViewBtn').classList.remove('active');
-                document.getElementById('followSourceBtn').classList.remove('active');
+                document.getElementById('followSourceBtn1').classList.remove('active');
+                document.getElementById('followSourceBtn2').classList.remove('active');
             });
             
             document.getElementById('leftViewBtn').addEventListener('click', () => {
@@ -811,7 +814,8 @@
                 isCameraRotating = false;
                 isFollowingSource = false;
                 document.getElementById('rotateViewBtn').classList.remove('active');
-                document.getElementById('followSourceBtn').classList.remove('active');
+                document.getElementById('followSourceBtn1').classList.remove('active');
+                document.getElementById('followSourceBtn2').classList.remove('active');
             });
             
             document.getElementById('rotateViewBtn').addEventListener('click', () => {
@@ -987,7 +991,9 @@
             // Ha bekapcsoljuk a forgást, kapcsoljuk ki a forráspont követést
             if (isCameraRotating) {
                 isFollowingSource = false;
-                document.getElementById('followSourceBtn').classList.remove('active');
+                followMode = 0;
+                document.getElementById('followSourceBtn1').classList.remove('active');
+                document.getElementById('followSourceBtn2').classList.remove('active');
                 document.getElementById('rotateViewBtn').classList.add('active');
             } else {
                 document.getElementById('rotateViewBtn').classList.remove('active');
@@ -1300,22 +1306,6 @@
         
         // Oldal frissítésekor alapállapotba állítás
         // A window.onbeforeunload esemény nem megfelelő erre a célra, mert az oldal bezárásakor is lefut
-        // Ezért egy egyedi gombot adunk hozzá, ami újratölti az oldalt
-        
-        // Újratöltés gomb hozzáadása a vezérlőpanelhez
-        const controlButtonsGroup = document.querySelector('#controls .control-group:last-child');
-        const reloadBtn = document.createElement('button');
-        reloadBtn.id = 'reloadBtn';
-        reloadBtn.textContent = 'Újratöltés';
-        reloadBtn.addEventListener('click', function() {
-            // Mozgástípus beállítása Vízelemre az újratöltés előtt
-            // Ez a beállítás a sessionStorage-ban tárolódik, amit az oldal betöltésekor olvasunk ki
-            sessionStorage.setItem('resetToWater', 'true');
-            
-            // Az oldal újratöltése, ami minden változót alapállapotba állít
-            window.location.reload();
-        });
-        controlButtonsGroup.appendChild(reloadBtn);
         
         // Panel összezárás/kinyitás gomb eseménykezelője
         const toggleControlsBtn = document.getElementById('toggleControlsBtn');
