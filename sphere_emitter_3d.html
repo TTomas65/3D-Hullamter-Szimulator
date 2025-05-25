@@ -57,9 +57,7 @@
             margin-bottom: 0;
         }
         
-        #controls.collapsed #toggleControlsBtn {
-            transform: rotate(180deg);
-        }
+        #controls.collapsed 
         
         .panel-header {
             display: flex;
@@ -88,27 +86,9 @@
             -webkit-text-fill-color: transparent;
         }
 
-        #toggleControlsBtn {
-            background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-            color: white;
-            border: none;
-            width: 36px;
-            height: 36px;
-            border-radius: 50%;
-            cursor: pointer;
-            font-size: 14px;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-            box-shadow: 0 4px 14px 0 rgba(59, 130, 246, 0.3);
-        }
         
-        #toggleControlsBtn::after {
-            content: '▲';
-            display: block;
-            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        }
+        
+        
         
         #toggleControlsBtn:hover {
             background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
@@ -465,8 +445,87 @@
             margin-bottom: 0;
         }
 
-        #extras.collapsed #toggleExtrasBtn {
-            transform: rotate(180deg);
+        #extras.collapsed 
+
+
+        
+        
+
+
+        
+        .panel-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+        }
+
+
+        /* ===== Panel‑header inline layout override (v8) ===== */
+        .panel-header {
+            display: flex !important;
+            align-items: center;
+            justify-content: space-between;
+        }
+        .panel-header .panel-title {
+            flex: 1 1 auto;
+            margin-right: 8px;
+            white-space: nowrap;
+        }
+        .panel-header button {
+            flex-shrink: 0;
+        }
+
+
+        /* ===== Scrollable instructions panel (v9) ===== */
+        #instructions {
+            position: fixed;
+            bottom: 24px;
+            right: 24px;
+            width: 280px;
+            max-height: 260px;
+            overflow-y: auto;
+            backdrop-filter: blur(12px);
+            background: rgba(15,23,42,0.85);
+            border: 1px solid rgba(148,163,184,0.25);
+            border-radius: 12px;
+            padding: 20px 24px 24px 24px;
+            color: #f8fafc;
+            font-size: 14px;
+            line-height: 1.4;
+            z-index: 120;
+        }
+        #instructionsCloseBtn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            width: 24px;
+            height: 24px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            background: rgba(255,255,255,0.08);
+            border: 1px solid rgba(148,163,184,0.3);
+            border-radius: 6px;
+            color: #f8fafc;
+            cursor: pointer;
+        }
+        #instructionsCloseBtn:hover {
+            background: rgba(255,255,255,0.2);
+        }
+        .instructions-section {
+            margin-bottom: 16px;
+        }
+        .instructions-title {
+            margin: 0 0 6px 0;
+            font-weight: 600;
+            font-size: 15px;
+        }
+        .instruction-item {
+            margin-left: 8px;
+            margin-bottom: 4px;
         }
 
 </style>
@@ -476,7 +535,7 @@
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.23</span>
+                <span class="version-number">v1.24</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -486,7 +545,7 @@
         <div id="extras" class="collapsed">
             <div class="panel-header">
                 <div class="panel-title">✨ Extrák</div>
-                <button id="toggleExtrasBtn" title="Panel összezárása/kinyitása">▼</button>
+                <button id="toggleExtrasBtn" title="Panel összezárása/kinyitása"></button>
             </div>
             <div class="control-group button-group">
                 <button id="clipXBtn">Metszet&nbsp;X</button>
@@ -580,16 +639,38 @@
             </div>
         </div>
         
+        
         <div id="instructions">
             <button id="instructionsCloseBtn">×</button>
-            
             <div class="instructions-section">
-                <h4 class="instructions-title control-section">🖱️ Irányítás</h4>
+                <h4 class="instructions-title">🖱️ Egér</h4>
                 <div class="instruction-item"><strong>Bal egérgomb:</strong> Kiáradási pont mozgatása</div>
-                <div class="instruction-item"><strong>Jobb egérgomb:</strong> Kamera forgatása</div>
-                <div class="instruction-item"><strong>Egérgörgő:</strong> Zoom be/ki</div>
-                <div class="instruction-item"><strong>Nyilak/WASD:</strong> Kamera mozgatása</div>
+                <div class="instruction-item"><strong>Jobb egérgomb:</strong> Kamera forgatása (orbit)</div>
+                <div class="instruction-item"><strong>Egérgörgő:</strong> Nagyítás / kicsinyítés</div>
             </div>
+            <div class="instructions-section">
+                <h4 class="instructions-title">⌨️ Billentyűk</h4>
+                <div class="instruction-item"><strong>W / S:</strong> Előre / Hátra</div>
+                <div class="instruction-item"><strong>A / D vagy ◀ / ▶:</strong> Balra / Jobbra</div>
+                <div class="instruction-item"><strong>▲ / ▼:</strong> Felfelé / Lefelé</div>
+            </div>
+            <div class="instructions-section">
+                <h4 class="instructions-title">📐 Metszési vezérlés</h4>
+                <div class="instruction-item"><strong>Metszet&nbsp;X gomb:</strong> Y‑irányú metszősík ki-/bekapcsolása</div>
+                <div class="instruction-item"><strong>Metszet&nbsp;Y gomb:</strong> X‑irányú metszősík ki-/bekapcsolása</div>
+                <div class="instruction-item"><strong>Metszet pozíció csúszkák:</strong> A sík eltolása ± irányban</div>
+            </div>
+            <div class="instructions-section">
+                <h4 class="instructions-title">⚙️ Egyéb funkciók</h4>
+                <div class="instruction-item"><strong>Intenzitás:</strong> Kiáradási sebesség</div>
+                <div class="instruction-item"><strong>Átlátszóság:</strong> Gömb megjelenítés módja</div>
+                <div class="instruction-item"><strong>Mozgástípus:</strong> Forráspont animáció módja</div>
+                <div class="instruction-item"><strong>Szünet / Újraindítás gomb:</strong> Animáció megállítása / folytatása</div>
+                <div class="instruction-item"><strong>Kamera reset:</strong> Kamera vissza alaphelyzetbe</div>
+            </div>
+        </div>
+        
+    </div>
             
             <div class="instructions-section">
                 <h4 class="instructions-title function-section">⚙️ Funkciók</h4>
@@ -957,42 +1038,51 @@
             keysPressed[event.code] = false;
         }
         
-        function handleKeyboardMovement() {
-            const moveSpeed = 0.1;
-            
-            // Kamera irányának kiszámítása
-            const forward = new THREE.Vector3();
-            camera.getWorldDirection(forward);
-            const right = new THREE.Vector3();
-            right.crossVectors(forward, camera.up).normalize();
-            
-            if (keysPressed['ArrowUp'] || keysPressed['KeyW']) {
-                // Előre
-                cameraCenter.x += forward.x * moveSpeed;
-                cameraCenter.y += forward.y * moveSpeed;
-                cameraCenter.z += forward.z * moveSpeed;
-            }
-            if (keysPressed['ArrowDown'] || keysPressed['KeyS']) {
-                // Hátra
-                cameraCenter.x -= forward.x * moveSpeed;
-                cameraCenter.y -= forward.y * moveSpeed;
-                cameraCenter.z -= forward.z * moveSpeed;
-            }
-            if (keysPressed['ArrowLeft'] || keysPressed['KeyA']) {
-                // Balra
-                cameraCenter.x -= right.x * moveSpeed;
-                cameraCenter.y -= right.y * moveSpeed;
-                cameraCenter.z -= right.z * moveSpeed;
-            }
-            if (keysPressed['ArrowRight'] || keysPressed['KeyD']) {
-                // Jobbra
-                cameraCenter.x += right.x * moveSpeed;
-                cameraCenter.y += right.y * moveSpeed;
-                cameraCenter.z += right.z * moveSpeed;
-            }
-            
-            updateCameraPosition();
-        }
+        
+function handleKeyboardMovement() {
+    const moveSpeed = 0.1;
+
+    // Új irányvektorok a kamera koordinátáiban
+    const forward = new THREE.Vector3();
+    camera.getWorldDirection(forward);
+    const right = new THREE.Vector3();
+    right.crossVectors(forward, camera.up).normalize();
+
+    /* Bal / Jobb : ArrowLeft / ArrowRight vagy A / D */
+    if (keysPressed['ArrowLeft'] || keysPressed['KeyA']) {
+        cameraCenter.x -= right.x * moveSpeed;
+        cameraCenter.y -= right.y * moveSpeed;
+        cameraCenter.z -= right.z * moveSpeed;
+    }
+    if (keysPressed['ArrowRight'] || keysPressed['KeyD']) {
+        cameraCenter.x += right.x * moveSpeed;
+        cameraCenter.y += right.y * moveSpeed;
+        cameraCenter.z += right.z * moveSpeed;
+    }
+
+    /* Fel / Le : ArrowUp / ArrowDown – függőleges mozgás a világ Y‑tengelyen */
+    if (keysPressed['ArrowUp']) {
+        cameraCenter.y += moveSpeed;
+    }
+    if (keysPressed['ArrowDown']) {
+        cameraCenter.y -= moveSpeed;
+    }
+
+    /* Előre / Hátra : W / S billentyű */
+    if (keysPressed['KeyW']) {
+        cameraCenter.x += forward.x * moveSpeed;
+        cameraCenter.y += forward.y * moveSpeed;
+        cameraCenter.z += forward.z * moveSpeed;
+    }
+    if (keysPressed['KeyS']) {
+        cameraCenter.x -= forward.x * moveSpeed;
+        cameraCenter.y -= forward.y * moveSpeed;
+        cameraCenter.z -= forward.z * moveSpeed;
+    }
+
+    updateCameraPosition();
+}
+
         
         function onMouseWheel(event) {
             event.preventDefault();
@@ -1366,18 +1456,22 @@
         
         // Panel összezárás/kinyitás gomb eseménykezelője
         const toggleControlsBtn = document.getElementById('toggleControlsBtn');
-        const controlsPanel = document.getElementById('controls');
+        const controlsPanel = document.getElementById('controls');    // Kezdeti nyílbeállítás
+    toggleControlsBtn.textContent = controlsPanel.classList.contains('collapsed') ? '▼' : '▲';
+
         
         toggleControlsBtn.addEventListener('click', function() {
             controlsPanel.classList.toggle('collapsed');
             
             // Gomb szimbólumának változtatása az állapot alapján
             if (controlsPanel.classList.contains('collapsed')) {
+                toggleControlsBtn.textContent = '';
                 toggleControlsBtn.textContent = '▼';
                 toggleControlsBtn.title = 'Panel kinyitása';
                 // Panel állapotának mentése
                 sessionStorage.setItem('controlsPanelCollapsed', 'true');
             } else {
+                toggleControlsBtn.textContent = '';
                 toggleControlsBtn.textContent = '▲';
                 toggleControlsBtn.title = 'Panel összezárása';
                 // Panel állapotának mentése
@@ -1388,7 +1482,8 @@
         // Panel állapotának betöltése az előző állapotból
         if (sessionStorage.getItem('controlsPanelCollapsed') === 'true') {
             controlsPanel.classList.add('collapsed');
-            toggleControlsBtn.textContent = '▼';
+            toggleControlsBtn.textContent = '';
+                toggleControlsBtn.textContent = '▼';
             toggleControlsBtn.title = 'Panel kinyitása';
         }
         
@@ -1502,21 +1597,16 @@ const extrasPanel = document.getElementById('extras');
 toggleExtrasBtn.addEventListener('click', () => {
     extrasPanel.classList.toggle('collapsed');
     if (extrasPanel.classList.contains('collapsed')) {
+        toggleExtrasBtn.textContent = '';
         toggleExtrasBtn.textContent = '▼';
         toggleExtrasBtn.title = 'Panel kinyitása';
     } else {
+        toggleExtrasBtn.textContent = '';
         toggleExtrasBtn.textContent = '▲';
         toggleExtrasBtn.title = 'Panel összezárása';
     }
 });
 
-
-
-clipYBtn.addEventListener('click', () => {
-    clipYActive = !clipYActive;
-    clipYBtn.classList.toggle('active', clipYActive);
-    updateClipping();
-});
 
 
 // ====== Updated clipping buttons with sliders (2025‑05‑25) ======
@@ -1570,10 +1660,12 @@ clipYSlider.addEventListener('input', () => {
 
 // Initial arrow state
 if (extrasPanel.classList.contains('collapsed')) {
-    toggleExtrasBtn.textContent = '▼';
+    toggleExtrasBtn.textContent = '';
+        toggleExtrasBtn.textContent = '▼';
     toggleExtrasBtn.title = 'Panel kinyitása';
 } else {
-    toggleExtrasBtn.textContent = '▲';
+    toggleExtrasBtn.textContent = '';
+        toggleExtrasBtn.textContent = '▲';
     toggleExtrasBtn.title = 'Panel összezárása';
 }
 
