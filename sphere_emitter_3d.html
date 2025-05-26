@@ -535,7 +535,7 @@
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.28</span>
+                <span class="version-number">v1.30</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -649,6 +649,9 @@
         <div id="instructions">
             <button id="instructionsCloseBtn">×</button>
             <div class="instructions-section">
+                <h4 class="instructions-title">Információs Panel:</h4>
+            </div>
+            <div class="instructions-section">
                 <h4 class="instructions-title">🖱️ Egér</h4>
                 <div class="instruction-item"><strong>Bal egérgomb:</strong> Kiáradási pont mozgatása</div>
                 <div class="instruction-item"><strong>Jobb egérgomb:</strong> Kamera forgatása (orbit)</div>
@@ -659,6 +662,8 @@
                 <div class="instruction-item"><strong>W / S:</strong> Előre / Hátra</div>
                 <div class="instruction-item"><strong>A / D vagy ◀ / ▶:</strong> Balra / Jobbra</div>
                 <div class="instruction-item"><strong>▲ / ▼:</strong> Felfelé / Lefelé</div>
+                <div class="instruction-item"><strong>X:</strong> Forgatás X tengely körül</div>
+                <div class="instruction-item"><strong>Y:</strong> Forgatás Y tengely körül</div>
             </div>
             <div class="instructions-section">
                 <h4 class="instructions-title">📐 Metszési vezérlés</h4>
@@ -673,6 +678,7 @@
                 <div class="instruction-item"><strong>Mozgástípus:</strong> Forráspont animáció módja</div>
                 <div class="instruction-item"><strong>Szünet / Újraindítás gomb:</strong> Animáció megállítása / folytatása</div>
                 <div class="instruction-item"><strong>Kamera reset:</strong> Kamera vissza alaphelyzetbe</div>
+                <div class="instruction-item"><strong>Képernyőmentés:</strong> Az aktuális nézet (csak a tartalom) mentése JPG formátumban panelek nélkül.</div>
             </div>
         </div>
         
@@ -730,6 +736,11 @@ window.addEventListener('DOMContentLoaded', () => {
         let isFollowingSource = false;
         let followMode = 0; // 0: nincs követés, 1: I. mód, 2: II. mód
         let cameraRotationSpeed = 0.005; // Kamera forgási sebessége
+        
+        // X és Y tengely körüli forgatás változók
+        let isRotatingAroundX = false; // X tengely körüli forgatás
+        let isRotatingAroundY = false; // Y tengely körüli forgatás
+        let sceneRotationSpeed = 0.02; // Színtér forgatási sebessége
         
         // Beállítások
         let emissionIntensity = 0.1;
@@ -1057,10 +1068,26 @@ window.addEventListener('DOMContentLoaded', () => {
         
         function onKeyDown(event) {
             keysPressed[event.code] = true;
+            
+            // X és Y billentyűk kezelése a színtér forgatásához
+            if (event.code === 'KeyX') {
+                isRotatingAroundX = true;
+            }
+            if (event.code === 'KeyZ') {
+                isRotatingAroundY = true;
+            }
         }
         
         function onKeyUp(event) {
             keysPressed[event.code] = false;
+            
+            // X és Y billentyűk felengedésének kezelése
+            if (event.code === 'KeyX') {
+                isRotatingAroundX = false;
+            }
+            if (event.code === 'KeyZ') {
+                isRotatingAroundY = false;
+            }
         }
         
         
@@ -1409,6 +1436,17 @@ function handleKeyboardMovement() {
             if (isCameraRotating) {
                 cameraAngleY += cameraRotationSpeed;
                 updateCameraPosition();
+            }
+            
+            // X és Y tengely körüli forgatás kezelése
+            if (isRotatingAroundX) {
+                // X tengely körüli forgatás - a teljes színteret forgatjuk
+                scene.rotation.x += sceneRotationSpeed;
+            }
+            
+            if (isRotatingAroundY) {
+                // Y tengely körüli forgatás - a teljes színteret forgatjuk
+                scene.rotation.y += sceneRotationSpeed;
             }
             
             // Forráspont követés kezelése
