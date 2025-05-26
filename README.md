@@ -20,6 +20,7 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
   - Forráspont automatikus követése (két különböző módon)
   - Kamera forgatás funkció
   - Billentyűzetes navigáció (W/A/S/D és nyilak)
+  - Színtér forgatása X és Y tengely körül (X és Y billentyűk)
 
 - **Metszési funkciók**:
   - X és Y irányú metszősíkok
@@ -66,6 +67,8 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
   - W / S: Előre / Hátra
   - A / D vagy ◀ / ▶: Balra / Jobbra
   - ▲ / ▼: Felfelé / Lefelé
+  - X: Színtér forgatása X tengely körül (amíg nyomva tartod)
+  - Z: Színtér forgatása Y tengely körül (amíg nyomva tartod)
 
 ## Követelmények
 
