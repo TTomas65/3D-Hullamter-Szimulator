@@ -35,8 +35,9 @@
             border-radius: 6px;
             color: #f8fafc;
             transition: all 0.4s cubic-bezier(0.4, 0, 0.2, 1);
-            overflow: hidden;
             width: 380px;
+            max-height: 80vh; /* Maximális magasság a képernyő 80%-a */
+            overflow-y: auto; /* Függőleges görgetés engedélyezése */
             box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.3), 0 10px 10px -5px rgba(0, 0, 0, 0.1);
         }
         
@@ -535,7 +536,7 @@
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.30</span>
+                <span class="version-number">v1.31</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
