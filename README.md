@@ -11,30 +11,61 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
   - Spirális mozgás (körkörös + emelkedő mozgás)
 
 - **Testreszabható paraméterek**:
-  - Forrás sebessége
-  - Gömbök átlátszósága
-  - Kameranézet
+  - Forrás sebessége (X és Y irányban)
+  - Gömbök átlátszósága (0 = teljesen átlátszatlan, 1 = csak drótváz)
+  - Kiáradási intenzitás
 
-- **Felhasználóbarát kezelőfelület**
-  - Élő vezérlőelemek
+- **Fejlett kamerakezelés**:
+  - Több előre beállított nézet (felülnézet, alulnézet, oldalnézet)
+  - Forráspont automatikus követése (két különböző módon)
+  - Kamera forgatás funkció
+  - Billentyűzetes navigáció (W/A/S/D és nyilak)
+
+- **Metszési funkciók**:
+  - X és Y irányú metszősíkok
+  - Állítható metszési pozíciók
+  - A belső struktúrák vizsgálatához
+
+- **Extra funkciók**:
+  - Képernyőmentés funkció (JPG formátumban)
+  - Szünet/folytatás vezérlés
+  - Jelenet újraindítás
+
+- **Felhasználóbarát kezelőfelület**:
+  - Összecsukható vezérlőpanelek
   - Részletes útmutató
   - Reszponzív design
+  - Modern, minimalista felület
 
 ## Telepítés és futtatás
 
 1. Klónozd le a repository-t:
    ```
-   git clone https://github.com/felhasznaloneved/hullamter-szimulator.git
+   git clone https://github.com/TTomas65/3D-Hullamter-Szimulator.git
    ```
 
 2. Nyisd meg a `sphere_emitter_3d.html` fájlt egy modern webböngészőben (Chrome, Firefox, Edge ajánlott).
 
 ## Használat
 
-1. A bal felső sarokban található vezérlőpanelen állíthatod be a kívánt paramétereket.
-2. Válaszd ki a kívánt mozgástípust a legördülő menüből.
-3. Az egérrel forgathatod a nézetet, a görgővel közelíthetsz vagy távolíthatsz.
-4. A szükséges további információkért kattints az "Útmutató" gombra.
+1. A bal felső sarokban található Irányító panelen állíthatod be a fő paramétereket.
+2. Az Extrák panelen találhatók a metszési és képernyőmentési funkciók.
+3. Az egérrel mozgathatod a kiáradási pontot (bal gomb) és forgathatod a nézetet (jobb gomb).
+4. A billentyűzettel navigálhatsz a térben (W/A/S/D és nyilak).
+5. Az egérgörgővel közelíthetsz vagy távolíthatsz.
+6. A jobb alsó sarokban található útmutató részletes információkat ad a kezelésről.
+
+## Irányítás
+
+- **Egér**:
+  - Bal egérgomb: Kiáradási pont mozgatása
+  - Jobb egérgomb: Kamera forgatása (orbit)
+  - Egérgörgő: Nagyítás / kicsinyítés
+
+- **Billentyűk**:
+  - W / S: Előre / Hátra
+  - A / D vagy ◀ / ▶: Balra / Jobbra
+  - ▲ / ▼: Felfelé / Lefelé
 
 ## Követelmények
 
@@ -46,10 +77,5 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 Ez a projekt nyílt forráskódú, a [MIT licenc](LICENSE) alatt érhető el.
 
 ## Fejlesztői információk
-
-- **Verzió**: 1.1
-- **Utolsó frissítés**: 2025. május 23.
-
----
 
 Köszönöm, hogy a Hullámtér Szimulátort használod! Ha bármilyen kérdésed vagy javaslatod van, ne habozz megnyitni egy új issue-t a GitHub-on.
