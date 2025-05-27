@@ -536,7 +536,7 @@
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.32</span>
+                <span class="version-number">v1.33</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -665,6 +665,7 @@
                 <div class="instruction-item"><strong>▲ / ▼:</strong> Felfelé / Lefelé</div>
                 <div class="instruction-item"><strong>X:</strong> Forgatás X tengely körül</div>
                 <div class="instruction-item"><strong>Y:</strong> Forgatás Y tengely körül</div>
+                <div class="instruction-item"><strong>P:</strong> Szünet / Folytatás</div>
             </div>
             <div class="instructions-section">
                 <h4 class="instructions-title">📐 Metszési vezérlés</h4>
@@ -807,7 +808,70 @@ window.addEventListener('DOMContentLoaded', () => {
             fillLight2.position.set(3, -5, -3);
             scene.add(fillLight2);
             
-            // Kibocsájtó pont létrehozása (sokkal kisebb piros gömb) - árnyékolt felülettel
+            
+/* ========= WaveEmitter class ========= */
+class WaveEmitter {
+    constructor(mesh) {
+        this.mesh = mesh;           // source mesh (red point)
+        this.spheres = [];
+        this.lastEmissionTime = performance.now();
+    }
+
+    get position() { return this.mesh.position; }
+
+    spawnSphere() {
+        // create a new sphere at current position
+        const geometry = new THREE.SphereGeometry(0.1, 32, 24);
+        const baseMaterial = new THREE.MeshPhongMaterial({
+            color: 0x6666ff,
+            transparent: sphereOpacity > 0,
+            opacity: 1 - sphereOpacity,
+            shininess: 80,
+            specular: 0x444444,
+            side: THREE.DoubleSide
+        });
+        const wireMaterial = new THREE.MeshBasicMaterial({
+            color: 0x404040,
+            wireframe: true,
+            transparent: false,
+            opacity: 1.0,
+            depthTest: true
+        });
+        const g = new THREE.Group();
+        const solid = new THREE.Mesh(geometry, baseMaterial);
+        const wire = new THREE.Mesh(geometry, wireMaterial);
+        g.add(solid);
+        g.add(wire);
+        g.position.copy(this.mesh.position);
+        g.userData = {
+            centerPosition: this.mesh.position.clone(),
+            scale: 0.1,
+            growthRate: 0.02,
+            life: 0,
+            baseMaterial,
+            wireframeMaterial: wireMaterial,
+            baseMesh: solid,
+            wireframeMesh: wire
+        };
+        scene.add(g);
+        spheres.push(g);
+        this.spheres.push(g);
+    }
+
+    update(now) {
+        const interval = 200 / emissionIntensity; // ms
+        if (now - this.lastEmissionTime >= interval) {
+            this.spawnSphere();
+            this.lastEmissionTime = now;
+        }
+    }
+
+    resync(now) { this.lastEmissionTime = now; }
+}
+
+const emitters = [];
+
+// Kibocsájtó pont létrehozása (sokkal kisebb piros gömb) - árnyékolt felülettel
             const emitterGeometry = new THREE.SphereGeometry(0.017, 16, 16); // 0.05 helyett 0.017 (kb 3x kisebb)
             const emitterMaterial = new THREE.MeshPhongMaterial({ 
                 color: 0xff0000,
@@ -816,6 +880,9 @@ window.addEventListener('DOMContentLoaded', () => {
             });
             emitterPoint = new THREE.Mesh(emitterGeometry, emitterMaterial);
             scene.add(emitterPoint);
+    const mainEmitter = new WaveEmitter(emitterPoint);
+    emitters.push(mainEmitter);
+
             
             // Eseménykezelők
             setupEventListeners();
@@ -1076,6 +1143,16 @@ window.addEventListener('DOMContentLoaded', () => {
             }
             if (event.code === 'KeyZ') {
                 isRotatingAroundY = true;
+            }
+            
+            // P billentyű kezelése a szünet/folytatás funkcióhoz
+            if (event.code === 'KeyP') {
+                // Csak a billentyű lenyomásakor váltson, ne folyamatosan
+                if (!event.repeat) {
+                    // Ugyanazt csináljuk, mint a szünet gomb kattintásakor
+                    isPaused = !isPaused;
+                    document.getElementById('pauseBtn').textContent = isPaused ? 'Folytat' : 'Szünet';
+                }
             }
         }
         
@@ -1438,7 +1515,7 @@ function handleKeyboardMovement() {
             updateSphereMaterials();
         }
         
-        function animate() {
+        function animate(time) {
             requestAnimationFrame(animate);
             
             // Billentyűzetes kamera mozgatás kezelése

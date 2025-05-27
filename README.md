@@ -72,6 +72,7 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
   - ▲ / ▼: Felfelé / Lefelé
   - X: Színtér forgatása X tengely körül (amíg nyomva tartod)
   - Z: Színtér forgatása Y tengely körül (amíg nyomva tartod)
+  - P: Szünet / Folytatás
 
 ## Követelmények
 
