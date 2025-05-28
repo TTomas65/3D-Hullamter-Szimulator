@@ -1,5 +1,31 @@
 # 3D Hullámtér Szimulátor
 
+## Újdonságok az 1.34-es verzióban (az 1.32-es verzióhoz képest)
+
+### Új funkciók és működési módok
+
+- **Két forráspont kiáradás mód választási lehetőség ( 1 mozgatható, 1 fix**: Most már két forráspont is megjeleníthető egyszerre, amelyek egymástól függetlenül bocsájtanak ki gömbhullámokat.
+
+- **Hullámok és forráspontok interakciójának fejlesztett kezelése**:
+  - A forráspontra (piros gömb) csak azok a kiáradó hullámok hatnak, amelyek már teljesen elhagyták a kibocsátó forráspontot.
+  - Új interakciós mechanizmus, amely megakadályozza, hogy a hullámtér azonnal visszahasson a forrásra.
+  - Beépített taszítási mechanizmus, amely a kiáradó hullámtér és a forráspontok találkozásához kötődik, irányvektorosan.
+
+- **Gömbök élettartamának és mennyiségének optimalizált kezelése**:
+  - A rendszer maximum 200 gömböt tart meg, a legrégebbiek automatikusan törlődnek.
+
+### Technikai fejlesztések
+
+- **Hatékony háromdimemziós térben történő ütközésdetektálás I. fázis**: Javult az ütközések és kölcsönhatások precizitása a Three.js vektoraritmetikájának fejlesztett használatával (de még csak a taszító hatásokhoz).
+
+- **Pozíció klónozási probléma javítása**: Minden gömb számára egyedi Vector3 objektum keül létrehozásra, biztosítva, hogy az emitterek egymástól függetlenül működjenek.
+
+- **Kódszerkezeti és hatóköri javítások**: A rendszer komponenseinek globális elérhetősége újra lett strukturálva, biztosítva a konzisztens működést.
+
+- **Új billentyű funkciók**:
+- P: Szünet / Folytatás 
+
+
 Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segítségével készítettem. A program lehetővé teszi egy forráspont gömbszerűen kibocsájtott hullámai terjedésének a megfigyelését a forráspont különböző típusú mozgásai közben a 3D térben.
 
 ![Running image](kepek/Kepernyo_02.jpg)
@@ -82,6 +108,7 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ## Licenc
 
 Ez a projekt nyílt forráskódú, a [MIT licenc](LICENSE) alatt érhető el.
+
 
 ## Fejlesztői információk
 
