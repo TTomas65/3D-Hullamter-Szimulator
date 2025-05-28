@@ -25,6 +25,7 @@
 - **Új billentyű funkciók**:
   - P: Szünet/Folytatás
 
+
 Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segítségével készítettem. A program lehetővé teszi egy forráspont gömbszerűen kibocsájtott hullámai terjedésének a megfigyelését a forráspont különböző típusú mozgásai közben a 3D térben.
 
 ![Running image](kepek/Kepernyo_02.jpg)
