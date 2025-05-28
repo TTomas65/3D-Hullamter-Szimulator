@@ -536,7 +536,7 @@
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.33</span>
+                <span class="version-number">v1.34</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -617,6 +617,7 @@
                     <option value="fire">Tűzelem</option>
                     <option value="circular">Körmozgás</option>
                     <option value="spiral">Spirális mozgás</option>
+                    <option value="dual">Két forráspont kiáradása</option>
                 </select>
             </div>
             
@@ -696,7 +697,7 @@
         </div>
     </div>
 
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script>
 /* ====== Screenshot button ====== */
 window.addEventListener('DOMContentLoaded', () => {
@@ -717,10 +718,140 @@ window.addEventListener('DOMContentLoaded', () => {
 
 </script>
     <script>
+/* ========= WaveEmitter class ========= */
+class WaveEmitter {
+    constructor(mesh) {
+        this.mesh = mesh;           // source mesh (red point)
+        this.spheres = [];
+        this.lastEmissionTime = performance.now();
+        this.velocity = new THREE.Vector3(0, 0, 0); // Forráspont sebessége ütközés miatt
+        this.isBeingPushed = false; // Jelzi, hogy éppen tolják-e
+    }
+
+    get position() { return this.mesh.position; }
+
+    spawnSphere() {
+        // create a new sphere at current position
+        const geometry = new THREE.SphereGeometry(0.1, 32, 24);
+        const baseMaterial = new THREE.MeshPhongMaterial({
+            color: 0x6666ff,
+            transparent: sphereOpacity > 0,
+            opacity: 1 - sphereOpacity,
+            shininess: 80,
+            specular: 0x444444,
+            side: THREE.DoubleSide
+        });
+        const wireMaterial = new THREE.MeshBasicMaterial({
+            color: 0x404040,
+            wireframe: true,
+            transparent: false,
+            opacity: 1.0,
+            depthTest: true
+        });
+        const g = new THREE.Group();
+        const solid = new THREE.Mesh(geometry, baseMaterial);
+        const wire = new THREE.Mesh(geometry, wireMaterial);
+        g.add(solid);
+        g.add(wire);
+        // A gömb pozíciójának beállítása a forráspont aktuális pozíciójára
+        const currentPosition = this.mesh.position.clone();
+        g.position.copy(currentPosition);
+        g.userData = {
+            centerPosition: currentPosition,
+            scale: 0.1,
+            growthRate: 0.02,
+            life: 0,
+            baseMaterial,
+            wireframeMaterial: wireMaterial,
+            baseMesh: solid,
+            wireframeMesh: wire,
+            emitter: this,                   // Referencia a kibocsátó forráspontra
+            hasLeftSource: false,            // Jelzi, hogy a gömb egyszer már teljesen elhagyta-e a forráspontot
+            canPushSource: false             // Jelzi, hogy a gömb képes-e hatni a forráspontra
+        };
+        scene.add(g);
+        spheres.push(g);
+        this.spheres.push(g);
+    }
+
+    update(now) {
+        const interval = 200 / emissionIntensity; // ms
+        if (now - this.lastEmissionTime >= interval) {
+            this.spawnSphere();
+            this.lastEmissionTime = now;
+        }
+    }
+
+    resync(now) { this.lastEmissionTime = now; }
+
+    // Ütközésdetektálás és tolás kezelése
+    checkCollisionAndPush() {
+        this.isBeingPushed = false;
+        this.velocity.set(0, 0, 0);
+
+        // Ellenőrizzük az összes gömbbal való ütközést
+        for (let sphere of spheres) {
+            const userData = sphere.userData;
+            const sphereCenter = userData.centerPosition;
+            const sphereRadius = userData.scale * 0.1; // 0.1 az alapméret
+            const sourcePosition = this.mesh.position;
+            
+            // Távolság számítása a gömb középpontja és a forráspont között
+            const distance = sphereCenter.distanceTo(sourcePosition);
+            
+            // A forráspont sugara
+            const sourceRadius = 0.007;
+            
+            // Ellenőrizzük, hogy a gömb hozzánk tartozik-e és képes-e hatást gyakorolni ránk
+            const isOurEmitterSphere = userData.emitter === this;
+            
+            // A forráspontot csak olyan gömbök taszíthatják, amelyek:
+            // 1. Vagy nem az adott forráspont bocsájtotta ki őket
+            // 2. Vagy már egyszer teljesen elhagyták a forráspontot és úgy érnek újra hozzá
+            // A userData.canPushSource flaget az updateSpheres függvény állítja be
+            const canInfluenceSource = !isOurEmitterSphere || userData.canPushSource;
+            
+            // Ha a forráspont a gömb felszínén vagy belül van, ÉS a gömb sugara legalább 2-szer nagyobb a forrásponténál,
+            // ÉS a gömb képes hatni a forráspontra
+            if (distance <= sphereRadius + sourceRadius && 
+                sphereRadius >= 2 * sourceRadius && 
+                canInfluenceSource) {
+                
+                this.isBeingPushed = true;
+                
+                // Irányvektor számítása (gömb középpontjától a forráspont felé)
+                const pushDirection = new THREE.Vector3()
+                    .subVectors(sourcePosition, sphereCenter)
+                    .normalize();
+                
+                // Ha a forráspont pontosan a gömb középpontjában van, akkor ne hasson rá taszítóerő
+                // (Ez a kiáradás keletkezésekor fordul elő)
+                if (pushDirection.length() === 0) {
+                    // Kihagyjuk a sebesség hozzáadását ebben az esetben
+                    continue;
+                }
+                
+                // Tolási sebesség = gömb tágulási sebessége
+                const pushSpeed = userData.growthRate * 0.1; // 0.1 az alapméret szorzó
+                
+                // Sebesség hozzáadása
+                this.velocity.add(pushDirection.multiplyScalar(pushSpeed));
+            }
+        }
+        
+        // Forráspont pozíciójának frissítése, ha tolják
+        if (this.isBeingPushed) {
+            this.mesh.position.add(this.velocity);
+        }
+    }
+}
         // Változók
         let scene, camera, renderer;
         let emitterPoint;
+        let emitterPoint2 = null; // második forráspont dual módban
         let spheres = [];
+        let emitters = []; // Emitter objektumok tömbje
+        let secondaryEmitter = null; // Második emitter a dual módhoz
         let mouse = { x: 0, y: 0 };
         let isLeftMouseDown = false;
         let isRightMouseDown = false;
@@ -756,6 +887,8 @@ window.addEventListener('DOMContentLoaded', () => {
         let circleRadius = 4; // Körmozgás sugara (ThreeJS egységben, nem pixelben)
         let circleAngle = 0; // Körmozgás szöge
         let spiralHeight = 0; // Spirális mozgás magassága
+        
+        // WaveEmitter osztály már globálisan definiálva van
 
         // Sebesség szorzók a különböző mozgástípusokhoz (ezeket az értékeket lehet finomhangolni)
         const speedMultipliers = {
@@ -815,6 +948,8 @@ class WaveEmitter {
         this.mesh = mesh;           // source mesh (red point)
         this.spheres = [];
         this.lastEmissionTime = performance.now();
+        this.velocity = new THREE.Vector3(0, 0, 0); // Forráspont sebessége ütközés miatt
+        this.isBeingPushed = false; // Jelzi, hogy éppen tolják-e
     }
 
     get position() { return this.mesh.position; }
@@ -842,16 +977,21 @@ class WaveEmitter {
         const wire = new THREE.Mesh(geometry, wireMaterial);
         g.add(solid);
         g.add(wire);
-        g.position.copy(this.mesh.position);
+        // A gömb pozíciójának beállítása a forráspont aktuális pozíciójára
+        const currentPosition = this.mesh.position.clone();
+        g.position.copy(currentPosition);
         g.userData = {
-            centerPosition: this.mesh.position.clone(),
+            centerPosition: currentPosition,
             scale: 0.1,
             growthRate: 0.02,
             life: 0,
             baseMaterial,
             wireframeMaterial: wireMaterial,
             baseMesh: solid,
-            wireframeMesh: wire
+            wireframeMesh: wire,
+            emitter: this,                   // Referencia a kibocsátó forráspontra
+            hasLeftSource: false,            // Jelzi, hogy a gömb egyszer már teljesen elhagyta-e a forráspontot
+            canPushSource: false             // Jelzi, hogy a gömb képes-e hatni a forráspontra
         };
         scene.add(g);
         spheres.push(g);
@@ -867,12 +1007,71 @@ class WaveEmitter {
     }
 
     resync(now) { this.lastEmissionTime = now; }
+
+    // Ütközésdetektálás és tolás kezelése
+    checkCollisionAndPush() {
+        this.isBeingPushed = false;
+        this.velocity.set(0, 0, 0);
+
+        // Ellenőrizzük az összes gömbbal való ütközést
+        for (let sphere of spheres) {
+            const userData = sphere.userData;
+            const sphereCenter = userData.centerPosition;
+            const sphereRadius = userData.scale * 0.1; // 0.1 az alapméret
+            const sourcePosition = this.mesh.position;
+            
+            // Távolság számítása a gömb középpontja és a forráspont között
+            const distance = sphereCenter.distanceTo(sourcePosition);
+            
+            // A forráspont sugara
+            const sourceRadius = 0.007;
+            
+            // Ellenőrizzük, hogy a gömb hozzánk tartozik-e és képes-e hatást gyakorolni ránk
+            const isOurEmitterSphere = userData.emitter === this;
+            
+            // A forráspontot csak olyan gömbök taszíthatják, amelyek:
+            // 1. Vagy nem az adott forráspont bocsájtotta ki őket
+            // 2. Vagy már egyszer teljesen elhagyták a forráspontot és úgy érnek újra hozzá
+            // A userData.canPushSource flaget az updateSpheres függvény állítja be
+            const canInfluenceSource = !isOurEmitterSphere || userData.canPushSource;
+            
+            // Ha a forráspont a gömb felszínén vagy belül van, ÉS a gömb sugara legalább 2-szer nagyobb a forrásponténál,
+            // ÉS a gömb képes hatni a forráspontra
+            if (distance <= sphereRadius + sourceRadius && 
+                sphereRadius >= 2 * sourceRadius && 
+                canInfluenceSource) {
+                
+                this.isBeingPushed = true;
+                
+                // Irányvektor számítása (gömb középpontjától a forráspont felé)
+                const pushDirection = new THREE.Vector3()
+                    .subVectors(sourcePosition, sphereCenter)
+                    .normalize();
+                
+                // Ha a forráspont pontosan a gömb középpontjában van, akkor ne hasson rá taszítóerő
+                // (Ez a kiáradás keletkezésekor fordul elő)
+                if (pushDirection.length() === 0) {
+                    // Kihagyjuk a sebesség hozzáadását ebben az esetben
+                    continue;
+                }
+                
+                // Tolási sebesség = gömb tágulási sebessége
+                const pushSpeed = userData.growthRate * 0.1; // 0.1 az alapméret szorzó
+                
+                // Sebesség hozzáadása
+                this.velocity.add(pushDirection.multiplyScalar(pushSpeed));
+            }
+        }
+        
+        // Forráspont pozíciójának frissítése, ha tolják
+        if (this.isBeingPushed) {
+            this.mesh.position.add(this.velocity);
+        }
+    }
 }
 
-const emitters = [];
-
 // Kibocsájtó pont létrehozása (sokkal kisebb piros gömb) - árnyékolt felülettel
-            const emitterGeometry = new THREE.SphereGeometry(0.017, 16, 16); // 0.05 helyett 0.017 (kb 3x kisebb)
+            const emitterGeometry = new THREE.SphereGeometry(0.007, 16, 16); // 0.05 helyett 0.017 (kb 3x kisebb)
             const emitterMaterial = new THREE.MeshPhongMaterial({ 
                 color: 0xff0000,
                 shininess: 80,
@@ -882,6 +1081,8 @@ const emitters = [];
             scene.add(emitterPoint);
     const mainEmitter = new WaveEmitter(emitterPoint);
     emitters.push(mainEmitter);
+
+    // A secondaryEmitter változó globálisan van deklarálva
 
             
             // Eseménykezelők
@@ -980,6 +1181,44 @@ const emitters = [];
                 }
                 console.log('Movement type changed to:', movementType, 'New Multipliers X:', currentXMultiplier, 'Y:', currentYMultiplier);
                 emitterPoint.visible = (movementType !== 'water');
+
+// Dual mode: két forráspont létrehozása/eltávolítása
+if (movementType === 'dual') {
+    // Első forráspont balra
+    emitterPoint.position.set(-2, 0, 0);
+    // Második forráspont létrehozása, ha még nincs
+    if (!emitterPoint2) {
+        const emitterGeometry = new THREE.SphereGeometry(0.007, 16, 16); // Ugyanolyan méret, mint az első forráspontnál
+        const emitterMaterial = new THREE.MeshPhongMaterial({color: 0xff0000, shininess: 80, specular: 0x444444});
+        emitterPoint2 = new THREE.Mesh(emitterGeometry, emitterMaterial);
+        emitterPoint2.position.set(2, 0, 0);
+        scene.add(emitterPoint2);
+        
+        // Második emitter létrehozása
+        if (!secondaryEmitter) {
+            secondaryEmitter = new WaveEmitter(emitterPoint2);
+            emitters.push(secondaryEmitter);
+        }
+    }
+} else {
+    // Más mód esetén távolítsuk el a második forráspontot
+    if (emitterPoint2) {
+        scene.remove(emitterPoint2);
+        emitterPoint2.geometry.dispose();
+        emitterPoint2.material.dispose();
+        emitterPoint2 = null;
+        
+        // Második emitter eltávolítása
+        if (secondaryEmitter) {
+            const index = emitters.indexOf(secondaryEmitter);
+            if (index > -1) {
+                emitters.splice(index, 1);
+            }
+            secondaryEmitter = null;
+        }
+    }
+}
+
 
                 // Körmozgás sugara csúszka láthatóságának beállítása
                 if (movementType === 'circular' || movementType === 'spiral') {
@@ -1420,6 +1659,44 @@ function handleKeyboardMovement() {
             scene.add(sphere);
             spheres.push(sphere);
         }
+
+// --- Új segédfüggvény: gömb létrehozása tetszőleges forrásponton ---
+function createSphereAt(sourceMesh) {
+    const geometry = new THREE.SphereGeometry(0.1, 32, 24);
+    const baseMaterial = new THREE.MeshPhongMaterial({
+        color: 0x6666ff,
+        transparent: sphereOpacity > 0,
+        opacity: sphereOpacity === 0 ? 1.0 : 1 - sphereOpacity,
+        shininess: 80,
+        specular: 0x444444,
+        side: THREE.DoubleSide
+    });
+    const wireframeMaterial = new THREE.MeshBasicMaterial({
+        color: 0x404040,
+        wireframe: true,
+        transparent: false,
+        opacity: 1.0,
+        depthTest: true
+    });
+    const sphere = new THREE.Group();
+    const solid = new THREE.Mesh(geometry, baseMaterial);
+    const wire = new THREE.Mesh(geometry, wireframeMaterial);
+    sphere.add(solid);
+    sphere.add(wire);
+    sphere.position.copy(sourceMesh.position);
+    sphere.userData = {
+        centerPosition: sourceMesh.position.clone(),
+        scale: 0.1,
+        growthRate: 0.02,
+        life: 0,
+        baseMaterial,
+        wireframeMaterial,
+        baseMesh: solid,
+        wireframeMesh: wire
+    };
+    scene.add(sphere);
+    spheres.push(sphere);
+}
         
         function updateSphereMaterials() {
             spheres.forEach(sphere => {
@@ -1471,6 +1748,13 @@ function handleKeyboardMovement() {
             // Kibocsájtó pont visszaállítása középre
             emitterPoint.position.set(0, 0, 0);
             
+            // Emitterek visszaállítása
+            emitters.forEach(emitter => {
+                emitter.velocity.set(0, 0, 0);
+                emitter.isBeingPushed = false;
+                emitter.resync(performance.now());
+            });
+            
             // Biztosítjuk, hogy a forráspont látható legyen
             if (emitterPoint) {
                 emitterPoint.visible = true;
@@ -1489,30 +1773,6 @@ function handleKeyboardMovement() {
             circleAngle = 0;
             spiralHeight = 0;
             
-            // Pause állapot visszaállítása
-            isPaused = false;
-            document.getElementById('pauseBtn').textContent = 'Szünet';
-        }
-        
-        function updateSpheres() {
-            for (let i = 0; i < spheres.length; i++) {
-                const sphere = spheres[i];
-                const userData = sphere.userData;
-                
-                // A pozíció a rögzített középponton marad
-                sphere.position.copy(userData.centerPosition);
-                
-                // Folyamatos méret növelése
-                userData.scale += userData.growthRate;
-                sphere.scale.set(userData.scale, userData.scale, userData.scale);
-                
-                // Élettartam növelése
-                userData.life++;
-            }
-            
-            // Frissítjük az összes gömb átlátszóságát az updateSphereMaterials függvénnyel
-            // Ez biztosítja, hogy a szünet és futás közben is ugyanaz legyen a megjelenítés
-            updateSphereMaterials();
         }
         
         function animate(time) {
@@ -1593,12 +1853,15 @@ function handleKeyboardMovement() {
             if (!isPaused) {
                 const currentTime = Date.now();
                 
-                // Gömb kibocsájtás - kevésbé sűrű alapértelmezett értéknél
-                const emissionInterval = 200 / emissionIntensity; // ms (200 helyett 100)
-                if (currentTime - lastEmissionTime > emissionInterval) {
-                    createSphere();
-                    lastEmissionTime = currentTime;
-                }
+                // Emitterek frissítése (gömb kibocsájtás)
+                emitters.forEach(emitter => {
+                    emitter.update(currentTime);
+                });
+                
+                // Ütközésdetektálás és forráspontok tolása
+                emitters.forEach(emitter => {
+                    emitter.checkCollisionAndPush();
+                });
                 
                 // Gömbök frissítése
                 updateSpheres();
@@ -1663,6 +1926,82 @@ function handleKeyboardMovement() {
             console.log('Mozgástípus Vízelemre állítva az újratöltés után.');
         }
     
+// ====== SPHERE UPDATE LOGIC (2025-05-28) ======
+function updateSpheres() {
+    for (let i = 0; i < spheres.length; i++) {
+        const sphere = spheres[i];
+        const userData = sphere.userData;
+        
+        // A pozíció a rögzített középponton marad
+        sphere.position.copy(userData.centerPosition);
+        
+        // Folyamatos méret növelése
+        userData.scale += userData.growthRate;
+        sphere.scale.set(userData.scale, userData.scale, userData.scale);
+        
+        // Élettartam növelése
+        userData.life++;
+        
+        // Ellenőrizzük, hogy a gömb kapcsolatban van-e a saját forráspontjával
+        if (userData.emitter) {
+            const sourcePosition = userData.emitter.mesh.position;
+            const sphereCenter = userData.centerPosition;
+            const sourceRadius = 0.007; // A forráspont sugara
+            const sphereRadius = userData.scale * 0.1; // A gömb jelenlegi sugara
+            
+            // Távolság a forráspont és a gömb között
+            const distance = sphereCenter.distanceTo(sourcePosition);
+            
+            // Ha a gömb nem érintkezik a forrásponttal, akkor jelöljük, hogy elhagyta azt
+            if (distance > sphereRadius + sourceRadius) {
+                userData.hasLeftSource = true;
+            }
+            
+            // Ha már elhagyta a forráspontot, akkor engedélyezzük, hogy taszítsa azt
+            if (userData.hasLeftSource) {
+                userData.canPushSource = true;
+            }
+        }
+        
+        // Gömbök eltávolítása ha túl nagyok
+        if (userData.scale > 400) {
+            scene.remove(sphere);
+            if (userData.baseMaterial) userData.baseMaterial.dispose();
+            if (userData.wireframeMaterial) userData.wireframeMaterial.dispose();
+            spheres.splice(i, 1);
+            i--; // Kompenzáljuk a tömbindexet
+        }
+    }
+    
+    // Max 200 gömb megtartása - a legrégebbiek törlése, ha túllépnénk a határt
+    if (spheres.length > 200) {
+        // Rendezzük a gömböket életkor szerint, a legrégebbieket elöre
+        spheres.sort((a, b) => a.userData.life - b.userData.life);
+        
+        // Töröljük a legrégebbi gömböket, amíg a szám vissza nem csökken 200-ra
+        while (spheres.length > 200) {
+            const oldestSphere = spheres.shift(); // Eltávolítjuk a legrégebbit
+            
+            // Ha van emitter, akkor eltávolítjuk a gömböt az emitter listájából is
+            if (oldestSphere.userData.emitter) {
+                const emitter = oldestSphere.userData.emitter;
+                const index = emitter.spheres.indexOf(oldestSphere);
+                if (index !== -1) {
+                    emitter.spheres.splice(index, 1);
+                }
+            }
+            
+            // Eltávolítjuk a gömböt a jelenetből és felszabadítjuk a forrásait
+            scene.remove(oldestSphere);
+            if (oldestSphere.userData.baseMaterial) oldestSphere.userData.baseMaterial.dispose();
+            if (oldestSphere.userData.wireframeMaterial) oldestSphere.userData.wireframeMaterial.dispose();
+        }
+    }
+    
+    // Frissítjük az összes gömb átlátszóságát
+    updateSphereMaterials();
+}
+
 // ====== MODIFIED TRANSPARENCY LOGIC (2025-05-25) ======
 function updateSphereMaterials() {
     spheres.forEach(sphere => {
