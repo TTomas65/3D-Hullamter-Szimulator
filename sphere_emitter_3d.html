@@ -536,7 +536,7 @@
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.35</span>
+                <span class="version-number">v1.36</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -571,6 +571,14 @@
                 <button id="saveScreenshotBtn">Képernyőmentés</button>
                 <button id="recordScreenBtn">Képernyővideó</button>
             </div>
+            
+            <div class="divider" style="height:1px;background:rgba(255,255,255,0.15);margin:12px 0;"></div>
+            <div class="control-group">
+                <label class="checkbox-container">
+                    <input type="checkbox" id="showTimelineCheck">
+                    <span class="checkbox-label">Időszál megjelenítése</span>
+                </label>
+            </div>
 
         </div>
         
@@ -585,6 +593,47 @@
                 0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
                 70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
                 100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+            }
+            
+            /* Checkbox styles */
+            .checkbox-container {
+                display: flex;
+                align-items: center;
+                cursor: pointer;
+                margin: 8px 0;
+            }
+            
+            .checkbox-container input[type="checkbox"] {
+                margin-right: 8px;
+                appearance: none;
+                -webkit-appearance: none;
+                width: 18px;
+                height: 18px;
+                border: 1px solid rgba(148, 163, 184, 0.5);
+                border-radius: 4px;
+                background: rgba(30, 41, 59, 0.5);
+                cursor: pointer;
+                position: relative;
+                outline: none;
+            }
+            
+            .checkbox-container input[type="checkbox"]:checked {
+                background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%);
+                border-color: #3b82f6;
+            }
+            
+            .checkbox-container input[type="checkbox"]:checked::after {
+                content: "✓";
+                position: absolute;
+                color: white;
+                font-size: 14px;
+                top: -1px;
+                left: 3px;
+            }
+            
+            .checkbox-label {
+                font-size: 14px;
+                color: #f8fafc;
             }
         </style>
 
@@ -700,6 +749,7 @@
                 <div class="instruction-item"><strong>Kamera reset:</strong> Kamera vissza alaphelyzetbe</div>
                 <div class="instruction-item"><strong>Képernyőmentés:</strong> Az aktuális nézet (csak a tartalom) mentése JPG formátumban panelek nélkül.</div>
                 <div class="instruction-item"><strong>Képernyővideó rögzítése:</strong> Az aktuális nézet videófelvétele WebM formátumban.</div>
+                <div class="instruction-item"><strong>Időszál megjelenítése:</strong> A forráspont által kibocsátott gömbök középpontjainak megjelölése és összekötése sárga színnel.</div>
             </div>
         </div>
         
@@ -790,6 +840,38 @@ class WaveEmitter {
         scene.add(g);
         spheres.push(g);
         this.spheres.push(g);
+        
+        // Mindig hozzáadjuk a pontot az időszálhoz, függetlenül attól, hogy a megjelenítés be van-e kapcsolva
+        // Tároljuk a pontot
+        // ------ Időszál kezelése több forrásponthoz igazítva ------
+        if (!this.timeline) {
+            // Minden emitter saját időszál‑listákat kap
+            this.timeline = { points: [], markers: [], lines: [] };
+        }
+        // Új pont felvétele az adott emitter időszálára
+        this.timeline.points.push(currentPosition.clone());
+        
+        // Sárga jelölő létrehozása
+        const markerGeometry = new THREE.SphereGeometry(0.009, 16, 16);
+        const markerMaterial = new THREE.MeshPhongMaterial({ color: 0xffff00, shininess: 80, specular: 0x444444 });
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.copy(currentPosition);
+        if (showTimeline) scene.add(marker);
+        timelineMarkers.push(marker);
+        this.timeline.markers.push(marker);
+        
+        // Az előző saját ponttal összekötő vonal elkészítése
+        if (this.timeline.points.length > 1) {
+            const pts = this.timeline.points;
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                pts[pts.length - 2], pts[pts.length - 1]
+            ]);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            if (showTimeline) scene.add(line);
+            timelineLines.push(line);
+            this.timeline.lines.push(line);
+        }
     }
 
     update(now) {
@@ -881,6 +963,34 @@ class WaveEmitter {
         let cameraCenter = { x: 0, y: 0, z: 0 }; // Kamera középpontja
         let keysPressed = {};
         let isPaused = false;
+        
+        // Időszál megjelenítés változói
+        let showTimeline = false; // Időszál megjelenítése be/ki
+        let timelinePoints = []; // Időszál pontok tárolása
+        let timelineMarkers = []; // Időszál jelölők (sárga gömbök)
+        let timelineLines = []; // Időszál vonalak
+        
+        // Időszál láthatóság frissítése
+        function updateTimelineVisibility() {
+            // Frissítjük az időszál elemek láthatóságát a showTimeline állapota alapján
+            timelineMarkers.forEach(marker => {
+                if (showTimeline && !marker.parent) {
+                    scene.add(marker);
+                } else if (!showTimeline && marker.parent) {
+                    scene.remove(marker);
+                }
+            });
+            
+            timelineLines.forEach(line => {
+                if (showTimeline && !line.parent) {
+                    scene.add(line);
+                } else if (!showTimeline && line.parent) {
+                    scene.remove(line);
+                }
+            });
+        }
+        
+        // Az időszál változók már deklarálva vannak korábban, itt nem kell újra deklarálni őket
         
         // Kamera követés és forgás változók
         let isCameraRotating = false;
@@ -1014,6 +1124,38 @@ class WaveEmitter {
         scene.add(g);
         spheres.push(g);
         this.spheres.push(g);
+        
+        // Mindig hozzáadjuk a pontot az időszálhoz, függetlenül attól, hogy a megjelenítés be van-e kapcsolva
+        // Tároljuk a pontot
+        // ------ Időszál kezelése több forrásponthoz igazítva ------
+        if (!this.timeline) {
+            // Minden emitter saját időszál‑listákat kap
+            this.timeline = { points: [], markers: [], lines: [] };
+        }
+        // Új pont felvétele az adott emitter időszálára
+        this.timeline.points.push(currentPosition.clone());
+        
+        // Sárga jelölő létrehozása
+        const markerGeometry = new THREE.SphereGeometry(0.009, 16, 16);
+        const markerMaterial = new THREE.MeshPhongMaterial({ color: 0xffff00, shininess: 80, specular: 0x444444 });
+        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+        marker.position.copy(currentPosition);
+        if (showTimeline) scene.add(marker);
+        timelineMarkers.push(marker);
+        this.timeline.markers.push(marker);
+        
+        // Az előző saját ponttal összekötő vonal elkészítése
+        if (this.timeline.points.length > 1) {
+            const pts = this.timeline.points;
+            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                pts[pts.length - 2], pts[pts.length - 1]
+            ]);
+            const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
+            const line = new THREE.Line(lineGeometry, lineMaterial);
+            if (showTimeline) scene.add(line);
+            timelineLines.push(line);
+            this.timeline.lines.push(line);
+        }
     }
 
     update(now) {
@@ -1089,7 +1231,7 @@ class WaveEmitter {
 }
 
 // Kibocsájtó pont létrehozása (sokkal kisebb piros gömb) - árnyékolt felülettel
-            const emitterGeometry = new THREE.SphereGeometry(0.007, 16, 16); // 0.05 helyett 0.017 (kb 3x kisebb)
+            const emitterGeometry = new THREE.SphereGeometry(0.009, 16, 16); // 0.05 helyett 0.017 (kb 3x kisebb)
             const emitterMaterial = new THREE.MeshPhongMaterial({ 
                 color: 0xff0000,
                 shininess: 80,
@@ -1179,7 +1321,7 @@ class WaveEmitter {
             });
             
             movementTypeSelect.addEventListener('change', (e) => {
-                // Először töröljük a jelenetet
+                // Először töröljük a jelenetet és az időszálat is
                 resetScene();
                 
                 movementType = e.target.value;
@@ -1204,7 +1346,17 @@ class WaveEmitter {
 if (movementType === 'dual') {
     // Első forráspont balra
     emitterPoint.position.set(-2, 0, 0);
-    // Második forráspont létrehozása, ha még nincs
+    
+    // Töröljük a felesleges időszál‑elemeket az első forráspontnál,
+    // hogy ne maradjon 0,0,0 pontból induló sárga vonal
+    if (typeof mainEmitter !== 'undefined' && mainEmitter.timeline) {
+        // Távolítsuk el a korábbi vonalakat és jelölőket a jelenetből
+        for (let l of mainEmitter.timeline.lines) scene.remove(l);
+        for (let m of mainEmitter.timeline.markers) scene.remove(m);
+        // Ürítsük a listákat
+        mainEmitter.timeline = { points: [], markers: [], lines: [] };
+    }
+// Második forráspont létrehozása, ha még nincs
     if (!emitterPoint2) {
         const emitterGeometry = new THREE.SphereGeometry(0.007, 16, 16); // Ugyanolyan méret, mint az első forráspontnál
         const emitterMaterial = new THREE.MeshPhongMaterial({color: 0xff0000, shininess: 80, specular: 0x444444});
@@ -1343,8 +1495,68 @@ if (movementType === 'dual') {
                 // Ez a beállítás a sessionStorage-ban tárolódik, amit az oldal betöltésekor olvasunk ki
                 sessionStorage.setItem('resetToWater', 'true');
                 
+                // Minden beállítás visszaállítása alapértékekre
+                resetAllSettings();
+                
                 // Az oldal újratöltése, ami minden változót alapállapotba állít
-                window.location.reload();
+                location.reload();
+            });
+            
+            // Minden beállítás visszaállítása alapértékekre
+            function resetAllSettings() {
+                // Csúszkák visszaállítása alapértékekre
+                intensitySlider.value = 1.0;
+                emissionIntensity = 1.0;
+                document.getElementById('intensityValue').textContent = '1.0';
+                
+                opacitySlider.value = 0.0;
+                sphereOpacity = 0.0;
+                document.getElementById('opacityValue').textContent = '0.00';
+                
+                sourceSpeedXSlider.value = 0.0;
+                sourceSpeedX = 0.0;
+                document.getElementById('sourceSpeedXValue').textContent = '0.000';
+                
+                sourceSpeedYSlider.value = 0.0;
+                sourceSpeedY = 0.0;
+                document.getElementById('sourceSpeedYValue').textContent = '0.000';
+                
+                circleRadiusSlider.value = 2.0;
+                circleRadius = 2.0;
+                document.getElementById('circleRadiusValue').textContent = '2.0';
+                
+                // Jelölőnégyzetek visszaállítása
+                document.getElementById('showTimelineCheck').checked = false;
+                showTimeline = false;
+                
+                // Mozgástípus visszaállítása 'water'-re
+                document.getElementById('movementType').value = 'water';
+                movementType = 'water';
+                
+                // Kamera beállítások visszaállítása
+                isCameraRotating = false;
+                isFollowingSource = false;
+                document.getElementById('rotateViewBtn').classList.remove('active');
+                document.getElementById('followSourceBtn1').classList.remove('active');
+                document.getElementById('followSourceBtn2').classList.remove('active');
+                
+                // Szünet állapot visszaállítása
+                isPaused = false;
+                pauseBtn.textContent = 'Szünet';
+                
+                // Időszál törlése
+                clearTimeline();
+                
+                // Jelenet visszaállítása
+                resetScene();
+            }
+            
+            // Időszál megjelenítés jelölőnégyzet eseménykezelő
+            document.getElementById('showTimelineCheck').addEventListener('change', function() {
+                showTimeline = this.checked;
+                
+                // Frissítjük az időszál elemek láthatóságát a jelölőnégyzet állapota alapján
+                updateTimelineVisibility();
             });
             
             instructionsCloseBtn.addEventListener('click', () => {
@@ -1782,6 +1994,91 @@ function createSphereAt(sourceMesh) {
             });
         }
         
+        // Időszál megjelenítés függvények
+        function addTimelinePoint(position) {
+            // Tároljuk a pontot
+            timelinePoints.push(position.clone());
+            
+            // Készítsünk egy sárga gömböt jelölőnek, ami ugyanolyan méretű és megjelenésű, mint a piros forráspont
+            const markerGeometry = new THREE.SphereGeometry(0.009, 16, 16); // Ugyanolyan méret és felbontás, mint a forráspont
+            const markerMaterial = new THREE.MeshPhongMaterial({ 
+                color: 0xffff00, 
+                shininess: 80, 
+                specular: 0x444444 
+            }); // Ugyanolyan anyag, csak sárga színnel
+            const marker = new THREE.Mesh(markerGeometry, markerMaterial);
+            marker.position.copy(position);
+            
+            // Csak akkor adjuk hozzá a jelenethez, ha be van kapcsolva a megjelenítés
+            if (showTimeline) {
+                scene.add(marker);
+            }
+            
+            timelineMarkers.push(marker);
+            
+            // Ha már van legalább két pont, akkor összekötjük őket egy vonallal
+            if (timelinePoints.length > 1) {
+                const lastIndex = timelinePoints.length - 1;
+                const lineGeometry = new THREE.BufferGeometry().setFromPoints([
+                    timelinePoints[lastIndex - 1],
+                    timelinePoints[lastIndex]
+                ]);
+                const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
+                const line = new THREE.Line(lineGeometry, lineMaterial);
+                
+                // Csak akkor adjuk hozzá a jelenethez, ha be van kapcsolva a megjelenítés
+                if (showTimeline) {
+                    scene.add(line);
+                }
+                
+                timelineLines.push(line);
+            }
+        }
+        
+        function clearTimeline() {
+            // Eltávolítjuk az összes jelölőt a jelenetből
+            timelineMarkers.forEach(marker => {
+                if (marker.parent) {
+                    scene.remove(marker);
+                }
+                if (marker.geometry) marker.geometry.dispose();
+                if (marker.material) marker.material.dispose();
+            });
+            
+            // Eltávolítjuk az összes vonalat a jelenetből
+            timelineLines.forEach(line => {
+                if (line.parent) {
+                    scene.remove(line);
+                }
+                if (line.geometry) line.geometry.dispose();
+                if (line.material) line.material.dispose();
+            });
+            
+            // Töröljük a tárolt adatokat
+            timelinePoints = [];
+            timelineMarkers = [];
+            timelineLines = [];
+        }
+        
+        function updateTimelineVisibility() {
+            // Frissítjük az időszál elemek láthatóságát a showTimeline állapota alapján
+            timelineMarkers.forEach(marker => {
+                if (showTimeline && !marker.parent) {
+                    scene.add(marker);
+                } else if (!showTimeline && marker.parent) {
+                    scene.remove(marker);
+                }
+            });
+            
+            timelineLines.forEach(line => {
+                if (showTimeline && !line.parent) {
+                    scene.add(line);
+                } else if (!showTimeline && line.parent) {
+                    scene.remove(line);
+                }
+            });
+        }
+        
         function resetScene() {
             // Gömbök eltávolítása
             spheres.forEach(sphere => {
@@ -1791,6 +2088,30 @@ function createSphereAt(sourceMesh) {
             });
             spheres.length = 0;
             
+            // Időszál törlése
+            // Eltávolítjuk az összes jelölőt a jelenetből
+            timelineMarkers.forEach(marker => {
+                if (marker.parent) {
+                    scene.remove(marker);
+                }
+                if (marker.geometry) marker.geometry.dispose();
+                if (marker.material) marker.material.dispose();
+            });
+            
+            // Eltávolítjuk az összes vonalat a jelenetből
+            timelineLines.forEach(line => {
+                if (line.parent) {
+                    scene.remove(line);
+                }
+                if (line.geometry) line.geometry.dispose();
+                if (line.material) line.material.dispose();
+            });
+            
+            // Töröljük a tárolt adatokat
+            timelinePoints = [];
+            timelineMarkers = [];
+            timelineLines = [];
+            
             // Kibocsájtó pont visszaállítása középre
             emitterPoint.position.set(0, 0, 0);
             
@@ -1798,6 +2119,23 @@ function createSphereAt(sourceMesh) {
             emitters.forEach(emitter => {
                 emitter.velocity.set(0, 0, 0);
                 emitter.isBeingPushed = false;
+
+// ---- Időszál kiürítése minden emitternél ----
+if (emitter.timeline) {
+    // Távolítsuk el a vonalakat és jelölőket a jelenetből
+    emitter.timeline.lines.forEach(l => {
+        if (l.parent) scene.remove(l);
+        if (l.geometry) l.geometry.dispose();
+        if (l.material) l.material.dispose();
+    });
+    emitter.timeline.markers.forEach(m => {
+        if (m.parent) scene.remove(m);
+        if (m.geometry) m.geometry.dispose();
+        if (m.material) m.material.dispose();
+    });
+    // Ürítsük a listákat
+    emitter.timeline = { points: [], markers: [], lines: [] };
+}
                 emitter.resync(performance.now());
             });
             
@@ -1818,7 +2156,6 @@ function createSphereAt(sourceMesh) {
             // Körmozgás és spirális mozgás változók visszaállítása
             circleAngle = 0;
             spiralHeight = 0;
-            
         }
         
         function animate(time) {
@@ -2032,7 +2369,10 @@ function createSphereAt(sourceMesh) {
             const event = new Event('change');
             movementTypeSelect.dispatchEvent(event);
             
-            console.log('Mozgástípus Vízelemre állítva az újratöltés után.');
+            // Meghívjuk a resetScene() függvényt is, hogy minden változót alaphelyzetbe állítson
+            resetScene();
+            
+            console.log('Mozgástípus Vízelemre állítva és jelenet visszaállítva az újratöltés után.');
         }
     
 // ====== SPHERE UPDATE LOGIC (2025-05-28) ======
@@ -2083,12 +2423,12 @@ function updateSpheres() {
     }
     
     // Max 200 gömb megtartása - a legrégebbiek törlése, ha túllépnénk a határt
-    if (spheres.length > 200) {
+    if (spheres.length > 400) {
         // Rendezzük a gömböket életkor szerint, a legrégebbieket elöre
         spheres.sort((a, b) => a.userData.life - b.userData.life);
         
         // Töröljük a legrégebbi gömböket, amíg a szám vissza nem csökken 200-ra
-        while (spheres.length > 200) {
+        while (spheres.length > 400) {
             const oldestSphere = spheres.shift(); // Eltávolítjuk a legrégebbit
             
             // Ha van emitter, akkor eltávolítjuk a gömböt az emitter listájából is

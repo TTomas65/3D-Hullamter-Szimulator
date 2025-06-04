@@ -1,5 +1,12 @@
 # 3D Hullámtér Szimulátor
 
+## Újdonságok az 1.36-os verzióban (az 1.35-es verzióhoz képest)
+
+**Időszál vonal leképzése**:
+
+- Az időszál vonal leképzése most már elérhető a "Időszál megjelenítése" jelölőnégyzet bekapcsolásával.
+- Új billentyűk: ő,ú,á,ű a jelenet forgarása közvetlenül a billentyűzettel. Ez aehetőség videórögzítés esetén hasznos lehet, mert zökkenőmentesebb videók készítése lehetséges.
+
 ## Újdonságok az 1.35-ös verzióban (az 1.34-es verzióhoz képest)
 
 **Képernyő videó felvétele (WebM formátumban)**:
