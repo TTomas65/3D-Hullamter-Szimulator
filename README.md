@@ -1,5 +1,22 @@
 # 3D Hullámtér Szimulátor
 
+## Újdonságok az 1.35-ös verzióban (az 1.34-es verzióhoz képest)
+
+**Képernyő videó felvétele (WebM formátumban)**:
+
+- A képernyő videó felvétele most már elérhető a "Képernyővideó" gombbal.
+- A progam indításkor ellenőrzi a különböző formátumok támogatottságát a következő sorrendben:
+video/webm;codecs=vp9 (legjobb minőség)
+video/webm;codecs=vp8 (széles körben támogatott)
+video/webm (alap WebM)
+video/mp4 (széles körben támogatott)
+Az első támogatott formátumot fogja használni a felvételhez.
+Ez biztosítja, hogy a képernyőfelvétel funkció a legtöbb modern böngészőben működjön.
+- A felvétel leállításakor automatikusan letölti a videót a böngészőben WebM formátumban  mert ez minden böngészőben támogatott. Ezt a formátumot a windows media player támogatja, de nagon egyszerűen átalakítható MP4 formátumba is például a ingyenesen a https://www.freeconvert.com/webm-to-mp4 oldal segítségével.
+- A legjobb minőségű videófelvétel érdekében a következő paramétereket használja a program a rögzítéskor: 
+ 60 FPS a felvétel képkockasebessége és 8 Mbps-re állítva a videó bitrátája.
+ 
+
 ## Újdonságok az 1.34-es verzióban (az 1.32-es verzióhoz képest)
 
 ### Új funkciók és működési módok

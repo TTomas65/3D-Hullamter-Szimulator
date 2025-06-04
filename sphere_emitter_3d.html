@@ -536,7 +536,7 @@
         <div id="version">
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.34</span>
+                <span class="version-number">v1.35</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -569,9 +569,24 @@
             <div class="divider" style="height:1px;background:rgba(255,255,255,0.15);margin:12px 0;"></div>
             <div class="control-group button-group">
                 <button id="saveScreenshotBtn">Képernyőmentés</button>
+                <button id="recordScreenBtn">Képernyővideó</button>
             </div>
 
         </div>
+        
+        <style>
+            /* Screen recording button styles */
+            #recordScreenBtn.recording {
+                background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+                animation: pulse 1.5s infinite;
+            }
+            
+            @keyframes pulse {
+                0% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+                70% { box-shadow: 0 0 0 10px rgba(220, 38, 38, 0); }
+                100% { box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
+            }
+        </style>
 
 
 <div id="controls">
@@ -2169,5 +2184,8 @@ if (extrasPanel.classList.contains('collapsed')) {
 }
 
 </script>
+
+<!-- Screen recorder functionality -->
+<script src="screen_recorder.js"></script>
 </body>
 </html>
