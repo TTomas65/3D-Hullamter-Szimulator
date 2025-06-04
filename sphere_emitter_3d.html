@@ -682,6 +682,8 @@
                 <div class="instruction-item"><strong>X:</strong> Forgatás X tengely körül</div>
                 <div class="instruction-item"><strong>Y:</strong> Forgatás Y tengely körül</div>
                 <div class="instruction-item"><strong>P:</strong> Szünet / Folytatás</div>
+                <div class="instruction-item"><strong>ő / ú:</strong> Kamera forgatása balra / jobbra</div>
+                <div class="instruction-item"><strong>á / ű:</strong> Kamera forgatása fel / le</div>
             </div>
             <div class="instructions-section">
                 <h4 class="instructions-title">📐 Metszési vezérlés</h4>
@@ -697,6 +699,7 @@
                 <div class="instruction-item"><strong>Szünet / Újraindítás gomb:</strong> Animáció megállítása / folytatása</div>
                 <div class="instruction-item"><strong>Kamera reset:</strong> Kamera vissza alaphelyzetbe</div>
                 <div class="instruction-item"><strong>Képernyőmentés:</strong> Az aktuális nézet (csak a tartalom) mentése JPG formátumban panelek nélkül.</div>
+                <div class="instruction-item"><strong>Képernyővideó rögzítése:</strong> Az aktuális nézet videófelvétele WebM formátumban.</div>
             </div>
         </div>
         
@@ -1399,6 +1402,20 @@ if (movementType === 'dual') {
                 isRotatingAroundY = true;
             }
             
+            // Magyar billentyűk kezelése a kamera forgatásához
+            if (event.key === 'ő') {
+                keysPressed['HungarianO'] = true; // ő billentyű - balra forgás
+            }
+            if (event.key === 'ú') {
+                keysPressed['HungarianU'] = true; // ú billentyű - jobbra forgás
+            }
+            if (event.key === 'á') {
+                keysPressed['HungarianA'] = true; // á billentyű - felfele forgás
+            }
+            if (event.key === 'ű') {
+                keysPressed['HungarianUU'] = true; // ű billentyű - lefele forgás
+            }
+            
             // P billentyű kezelése a szünet/folytatás funkcióhoz
             if (event.code === 'KeyP') {
                 // Csak a billentyű lenyomásakor váltson, ne folyamatosan
@@ -1419,6 +1436,20 @@ if (movementType === 'dual') {
             }
             if (event.code === 'KeyZ') {
                 isRotatingAroundY = false;
+            }
+            
+            // Magyar billentyűk felengedésének kezelése
+            if (event.key === 'ő') {
+                keysPressed['HungarianO'] = false; // ő billentyű - balra forgás
+            }
+            if (event.key === 'ú') {
+                keysPressed['HungarianU'] = false; // ú billentyű - jobbra forgás
+            }
+            if (event.key === 'á') {
+                keysPressed['HungarianA'] = false; // á billentyű - felfele forgás
+            }
+            if (event.key === 'ű') {
+                keysPressed['HungarianUU'] = false; // ű billentyű - lefele forgás
             }
         }
         
@@ -1795,6 +1826,69 @@ function createSphereAt(sourceMesh) {
             
             // Billentyűzetes kamera mozgatás kezelése
             handleKeyboardMovement();
+            
+            // Magyar billentyűk kezelése a kamera forgatásához
+            const rotationSpeed = 0.05;
+            
+            // ő - balra forgás
+            if (keysPressed['HungarianO']) {
+                cameraAngleY -= rotationSpeed;
+                updateCameraPosition();
+            }
+            
+            // ú - jobbra forgás
+            if (keysPressed['HungarianU']) {
+                cameraAngleY += rotationSpeed;
+                updateCameraPosition();
+            }
+            
+            // á - felfele forgás - EGYSZERŰSÍTETT MEGOLDÁS
+            if (keysPressed['HungarianA']) {
+                // Csak a függőleges szöget módosítjuk
+                const tempY = cameraAngleY; // Elmentjük az Y szöget
+                cameraAngleX -= rotationSpeed;
+                // Függőleges szög korlátozása
+                cameraAngleX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, cameraAngleX));
+                
+                // Manuálisan számítjuk ki a kamera pozícióját
+                const x = cameraDistance * Math.sin(tempY) * Math.cos(cameraAngleX);
+                const y = cameraDistance * Math.sin(cameraAngleX);
+                const z = cameraDistance * Math.cos(tempY) * Math.cos(cameraAngleX);
+                
+                camera.position.set(
+                    x + cameraCenter.x, 
+                    y + cameraCenter.y, 
+                    z + cameraCenter.z
+                );
+                camera.lookAt(cameraCenter.x, cameraCenter.y, cameraCenter.z);
+                
+                // Visszaállítjuk az eredeti Y szöget
+                cameraAngleY = tempY;
+            }
+            
+            // ű - lefele forgás - EGYSZERŰSÍTETT MEGOLDÁS
+            if (keysPressed['HungarianUU']) {
+                // Csak a függőleges szöget módosítjuk
+                const tempY = cameraAngleY; // Elmentjük az Y szöget
+                cameraAngleX += rotationSpeed;
+                // Függőleges szög korlátozása
+                cameraAngleX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, cameraAngleX));
+                
+                // Manuálisan számítjuk ki a kamera pozícióját
+                const x = cameraDistance * Math.sin(tempY) * Math.cos(cameraAngleX);
+                const y = cameraDistance * Math.sin(cameraAngleX);
+                const z = cameraDistance * Math.cos(tempY) * Math.cos(cameraAngleX);
+                
+                camera.position.set(
+                    x + cameraCenter.x, 
+                    y + cameraCenter.y, 
+                    z + cameraCenter.z
+                );
+                camera.lookAt(cameraCenter.x, cameraCenter.y, cameraCenter.z);
+                
+                // Visszaállítjuk az eredeti Y szöget
+                cameraAngleY = tempY;
+            }
             
             // Kamera forgás kezelése
             if (isCameraRotating) {
