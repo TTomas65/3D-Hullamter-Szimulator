@@ -284,6 +284,36 @@
             align-items: flex-end;
             gap: 8px;
         }
+        
+        .version-row {
+            display: flex;
+            flex-direction: row;
+            align-items: center;
+            gap: 10px;
+        }
+        
+        .velocity-container {
+            background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%);
+            backdrop-filter: blur(5px);
+            padding: 8px 12px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+        
+        .velocity-title {
+            font-size: 14px;
+            font-weight: 500;
+            color: #cbd5e1;
+        }
+        
+        .velocity-value {
+            font-size: 14px;
+            font-weight: 600;
+            color: #3b82f6;
+        }
 
         .version-container {
             background: linear-gradient(135deg, rgba(99, 102, 241, 0.9) 0%, rgba(79, 70, 229, 0.9) 100%);
@@ -534,9 +564,15 @@
 <body>
     <div id="container">
         <div id="version">
-            <div class="version-container">
-                <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.36</span>
+            <div class="version-row">
+                <div class="velocity-container">
+                    <span class="velocity-title">Forráspont sebessége</span>
+                    <span class="velocity-value" id="sourceVelocityValue">0.000</span>
+                </div>
+                <div class="version-container">
+                    <span class="version-title">Hullámtér Szimulátor</span>
+                    <span class="version-number">v1.36</span>
+                </div>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -658,14 +694,14 @@
             
             <div class="control-group">
                 <label for="sourceSpeedX">Forráspont sebessége X-tengely</label>
-                <input type="range" id="sourceSpeedX" min="0" max="0.5" step="0.001" value="0">
-                <div class="value-display" id="sourceSpeedXValue">0.000</div>
+                <input type="range" id="sourceSpeedX" min="0" max="5" step="0.1" value="0">
+                <div class="value-display" id="sourceSpeedXValue">0.0</div>
             </div>
 
             <div class="control-group">
                 <label for="sourceSpeedY">Forráspont sebessége Y-tengely</label>
-                <input type="range" id="sourceSpeedY" min="0" max="0.5" step="0.001" value="0">
-                <div class="value-display" id="sourceSpeedYValue">0.000</div>
+                <input type="range" id="sourceSpeedY" min="0" max="5" step="0.1" value="0">
+                <div class="value-display" id="sourceSpeedYValue">0.0</div>
             </div>
 
             <div class="control-group" id="circleRadiusControlGroup" style="display: none;">
@@ -766,6 +802,7 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
+    <script src="source_velocity.js"></script>
 <script>
 /* ====== Screenshot button ====== */
 window.addEventListener('DOMContentLoaded', () => {
@@ -1304,14 +1341,38 @@ class WaveEmitter {
             
             sourceSpeedXSlider.addEventListener('input', (e) => {
                 sourceSpeedX = parseFloat(e.target.value);
-                document.getElementById('sourceSpeedXValue').textContent = sourceSpeedX.toFixed(3);
+                document.getElementById('sourceSpeedXValue').textContent = sourceSpeedX.toFixed(1);
                 console.log('sourceSpeedX changed to:', sourceSpeedX);
+                
+                // Frissítjük az alapvektort a csúszka változtatásakor
+                sourceVelocityCalculator.setBaseVelocity(
+                    movementType,
+                    sourceSpeedX,
+                    sourceSpeedY,
+                    currentXMultiplier,
+                    currentYMultiplier,
+                    circleRadius,
+                    circleAngle,
+                    emitterDirection
+                );
             });
 
             sourceSpeedYSlider.addEventListener('input', (e) => {
                 sourceSpeedY = parseFloat(e.target.value);
-                document.getElementById('sourceSpeedYValue').textContent = sourceSpeedY.toFixed(3);
+                document.getElementById('sourceSpeedYValue').textContent = sourceSpeedY.toFixed(1);
                 console.log('sourceSpeedY changed to:', sourceSpeedY);
+                
+                // Frissítjük az alapvektort a csúszka változtatásakor
+                sourceVelocityCalculator.setBaseVelocity(
+                    movementType,
+                    sourceSpeedX,
+                    sourceSpeedY,
+                    currentXMultiplier,
+                    currentYMultiplier,
+                    circleRadius,
+                    circleAngle,
+                    emitterDirection
+                );
             });
 
             circleRadiusSlider.addEventListener('input', (e) => {
@@ -2164,6 +2225,9 @@ if (emitter.timeline) {
             // Billentyűzetes kamera mozgatás kezelése
             handleKeyboardMovement();
             
+            // Forráspont sebességének számítása és megjelenítése
+            updateSourceVelocityDisplay();
+            
             // Magyar billentyűk kezelése a kamera forgatásához
             const rotationSpeed = 0.05;
             
@@ -2272,25 +2336,28 @@ if (emitter.timeline) {
             
             // Kibocsájtó pont mozgatása a kiválasztott mozgástípus szerint
             if (!isPaused) {
+                // Kalibrációs tényező a csúszkák új értéktartományához (0.02 * 0.1 = 0.002 a gömb tágulási sebessége)
+                const baseExpansionSpeed = 0.002;
+                
                 if (movementType === 'fire') {
                     // console.log('Animating fire. SpeedX:', sourceSpeedX, 'MultX:', currentXMultiplier, 'SpeedY:', sourceSpeedY, 'MultY:', currentYMultiplier, 'Direction:', emitterDirection);
-                    emitterPoint.position.x += sourceSpeedX * currentXMultiplier * emitterDirection;
-                    emitterPoint.position.y += sourceSpeedY * currentYMultiplier; // Y mozgás hozzáadása
+                    emitterPoint.position.x += sourceSpeedX * baseExpansionSpeed * emitterDirection;
+                    emitterPoint.position.y += sourceSpeedY * baseExpansionSpeed; // Y mozgás hozzáadása
                 } 
                 else if (movementType === 'circular') {
-                    circleAngle += sourceSpeedX * currentXMultiplier;
+                    circleAngle += sourceSpeedX * baseExpansionSpeed / circleRadius;
                     const x_pos = Math.cos(circleAngle) * circleRadius;
                     const z_pos = Math.sin(circleAngle) * circleRadius;
-                    emitterPoint.position.y += sourceSpeedY * currentYMultiplier; // Y elmozdulás hozzáadása
+                    emitterPoint.position.y += sourceSpeedY * baseExpansionSpeed; // Y elmozdulás hozzáadása
                     emitterPoint.position.set(x_pos, emitterPoint.position.y, z_pos);
                 }
                 else if (movementType === 'spiral') {
-                    const baseAngularSpeed = sourceSpeedX * currentXMultiplier;
-                    circleAngle += baseAngularSpeed * 0.5; 
+                    const baseAngularSpeed = sourceSpeedX * baseExpansionSpeed / circleRadius;
+                    circleAngle += baseAngularSpeed; 
                     const x_pos = Math.cos(circleAngle) * circleRadius;
                     const z_pos = Math.sin(circleAngle) * circleRadius;
                     
-                    spiralHeight += sourceSpeedY * currentYMultiplier; // Y-slider vezérli az emelkedést
+                    spiralHeight += sourceSpeedY * baseExpansionSpeed; // Y-slider vezérli az emelkedést
                     emitterPoint.position.set(x_pos, spiralHeight, z_pos);
                 }
             }
@@ -2307,6 +2374,14 @@ if (emitter.timeline) {
                 // Ütközésdetektálás és forráspontok tolása
                 emitters.forEach(emitter => {
                     emitter.checkCollisionAndPush();
+                    
+                    // Frissítjük a sebességszámító környezeti sebességét
+                    // Csak akkor, ha ténylegesen van taszítás
+                    if (sourceVelocityCalculator && emitter.isBeingPushed && emitter.velocity.length() > 0) {
+                        sourceVelocityCalculator.addEnvironmentalEffect(emitter.velocity);
+                        // Azonnal frissítjük a kijelzést is, hogy a taszítás hatása látszódjon
+                        updateSourceVelocityDisplay();
+                    }
                 });
                 
                 // Gömbök frissítése
@@ -2322,6 +2397,70 @@ if (emitter.timeline) {
         
         // Oldal frissítésekor alapállapotba állítás
         // A window.onbeforeunload esemény nem megfelelő erre a célra, mert az oldal bezárásakor is lefut
+        
+        // Forráspont sebességének számítása és megjelenítése
+        function updateSourceVelocityDisplay() {
+            // Csak akkor számoljuk, ha nem vízelem módban vagyunk és nincs szüneteltetve
+            if (movementType !== 'water' && !isPaused) {
+                // Ellenőrizzük, hogy van-e aktív emitter, ami éppen taszítás alatt áll
+                let isAnyEmitterPushed = false;
+                let activeEmitter = null;
+                
+                for (let emitter of emitters) {
+                    if (emitter.isBeingPushed && emitter.velocity.length() > 0) {
+                        isAnyEmitterPushed = true;
+                        activeEmitter = emitter;
+                        break;
+                    }
+                }
+                
+                // Ha van taszítás alatt álló emitter, akkor annak a sebességét használjuk
+                if (isAnyEmitterPushed && activeEmitter) {
+                    // Frissítjük a környezeti sebességet a taszítás alapján
+                    sourceVelocityCalculator.addEnvironmentalEffect(activeEmitter.velocity);
+                } else {
+                    // Ha nincs taszítás, akkor a csúszkák alapján számoljuk a sebességet
+                    sourceVelocityCalculator.setBaseVelocity(
+                        movementType,
+                        sourceSpeedX,
+                        sourceSpeedY,
+                        currentXMultiplier,
+                        currentYMultiplier,
+                        circleRadius,
+                        circleAngle,
+                        emitterDirection
+                    );
+                }
+                
+                // Sebesség arány kiszámítása a környezeti hatásokkal együtt
+                const velocityRatio = sourceVelocityCalculator.calculateVelocityRatio(true);
+                
+                // Érték megjelenítése a panelen
+                const velocityDisplay = document.getElementById('sourceVelocityValue');
+                if (velocityDisplay) {
+                    velocityDisplay.textContent = sourceVelocityCalculator.formatVelocityDisplay(velocityRatio);
+                    
+                    // Színezés az érték alapján (1.0 körül kék, nagyobb értékeknél piros, kisebbeknél zöld)
+                    if (velocityRatio > 1.1) {
+                        velocityDisplay.style.color = '#ef4444'; // piros
+                    } else if (velocityRatio < 0.9) {
+                        velocityDisplay.style.color = '#10b981'; // zöld
+                    } else {
+                        velocityDisplay.style.color = '#3b82f6'; // kék (közel 1.0)
+                    }
+                    
+                    // Debug információ a konzolra
+                    console.log("Sebesség arány:", velocityRatio, "Taszítás alatt:", isAnyEmitterPushed);
+                }
+            } else {
+                // Vízelem módban vagy szünet esetén nullázás
+                const velocityDisplay = document.getElementById('sourceVelocityValue');
+                if (velocityDisplay) {
+                    velocityDisplay.textContent = '0.000';
+                    velocityDisplay.style.color = '#3b82f6'; // alapértelmezett kék
+                }
+            }
+        }
         
         // Panel összezárás/kinyitás gomb eseménykezelője
         const toggleControlsBtn = document.getElementById('toggleControlsBtn');
