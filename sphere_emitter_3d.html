@@ -284,36 +284,6 @@
             align-items: flex-end;
             gap: 8px;
         }
-        
-        .version-row {
-            display: flex;
-            flex-direction: row;
-            align-items: center;
-            gap: 10px;
-        }
-        
-        .velocity-container {
-            background: linear-gradient(135deg, rgba(15, 23, 42, 0.8) 0%, rgba(30, 41, 59, 0.8) 100%);
-            backdrop-filter: blur(5px);
-            padding: 8px 12px;
-            border-radius: 6px;
-            display: flex;
-            align-items: center;
-            gap: 8px;
-            border: 1px solid rgba(255, 255, 255, 0.1);
-        }
-        
-        .velocity-title {
-            font-size: 14px;
-            font-weight: 500;
-            color: #cbd5e1;
-        }
-        
-        .velocity-value {
-            font-size: 14px;
-            font-weight: 600;
-            color: #3b82f6;
-        }
 
         .version-container {
             background: linear-gradient(135deg, rgba(99, 102, 241, 0.9) 0%, rgba(79, 70, 229, 0.9) 100%);
@@ -564,15 +534,13 @@
 <body>
     <div id="container">
         <div id="version">
-            <div class="version-row">
-                <div class="velocity-container">
-                    <span class="velocity-title">Forráspont sebessége</span>
-                    <span class="velocity-value" id="sourceVelocityValue">0.000</span>
-                </div>
-                <div class="version-container">
-                    <span class="version-title">Hullámtér Szimulátor</span>
-                    <span class="version-number">v1.36</span>
-                </div>
+            <div id="velocity-container" class="version-container">
+                <span class="version-title">Forráspont Sebessége</span>
+                <span id="velocity-value" class="version-number">0.000</span>
+            </div>
+            <div class="version-container">
+                <span class="version-title">Hullámtér Szimulátor</span>
+                <span class="version-number">v1.36</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -694,14 +662,14 @@
             
             <div class="control-group">
                 <label for="sourceSpeedX">Forráspont sebessége X-tengely</label>
-                <input type="range" id="sourceSpeedX" min="0" max="5" step="0.1" value="0">
-                <div class="value-display" id="sourceSpeedXValue">0.0</div>
+                <input type="range" id="sourceSpeedX" min="0" max="0.5" step="0.001" value="0">
+                <div class="value-display" id="sourceSpeedXValue">0.000</div>
             </div>
 
             <div class="control-group">
                 <label for="sourceSpeedY">Forráspont sebessége Y-tengely</label>
-                <input type="range" id="sourceSpeedY" min="0" max="5" step="0.1" value="0">
-                <div class="value-display" id="sourceSpeedYValue">0.0</div>
+                <input type="range" id="sourceSpeedY" min="0" max="0.5" step="0.001" value="0">
+                <div class="value-display" id="sourceSpeedYValue">0.000</div>
             </div>
 
             <div class="control-group" id="circleRadiusControlGroup" style="display: none;">
@@ -802,7 +770,6 @@
     </div>
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
-    <script src="source_velocity.js"></script>
 <script>
 /* ====== Screenshot button ====== */
 window.addEventListener('DOMContentLoaded', () => {
@@ -829,8 +796,7 @@ class WaveEmitter {
         this.mesh = mesh;           // source mesh (red point)
         this.spheres = [];
         this.lastEmissionTime = performance.now();
-        this.velocity = new THREE.Vector3(0, 0, 0); // Forráspont sebessége ütközés miatt
-        this.isBeingPushed = false; // Jelzi, hogy éppen tolják-e
+        this.physics_velocity = new THREE.Vector3(0, 0, 0); // Forráspont fizikai sebessége ütközés miatt
     }
 
     get position() { return this.mesh.position; }
@@ -921,64 +887,49 @@ class WaveEmitter {
 
     resync(now) { this.lastEmissionTime = now; }
 
-    // Ütközésdetektálás és tolás kezelése
-    checkCollisionAndPush() {
-        this.isBeingPushed = false;
-        this.velocity.set(0, 0, 0);
+    // Ütközésdetektálás és fizika frissítése a kért módosítások alapján
+    updateCollisionPhysics() {
+        const sourceRadius = 0.007; // A forráspont sugara
 
-        // Ellenőrizzük az összes gömbbal való ütközést
+        // Ütközés ellenőrzése az összes gömbbel
         for (let sphere of spheres) {
             const userData = sphere.userData;
             const sphereCenter = userData.centerPosition;
             const sphereRadius = userData.scale * 0.1; // 0.1 az alapméret
             const sourcePosition = this.mesh.position;
-            
-            // Távolság számítása a gömb középpontja és a forráspont között
             const distance = sphereCenter.distanceTo(sourcePosition);
-            
-            // A forráspont sugara
-            const sourceRadius = 0.007;
-            
-            // Ellenőrizzük, hogy a gömb hozzánk tartozik-e és képes-e hatást gyakorolni ránk
-            const isOurEmitterSphere = userData.emitter === this;
-            
-            // A forráspontot csak olyan gömbök taszíthatják, amelyek:
-            // 1. Vagy nem az adott forráspont bocsájtotta ki őket
-            // 2. Vagy már egyszer teljesen elhagyták a forráspontot és úgy érnek újra hozzá
-            // A userData.canPushSource flaget az updateSpheres függvény állítja be
-            const canInfluenceSource = !isOurEmitterSphere || userData.canPushSource;
-            
-            // Ha a forráspont a gömb felszínén vagy belül van, ÉS a gömb sugara legalább 2-szer nagyobb a forrásponténál,
-            // ÉS a gömb képes hatni a forráspontra
-            if (distance <= sphereRadius + sourceRadius && 
-                sphereRadius >= 2 * sourceRadius && 
-                canInfluenceSource) {
-                
-                this.isBeingPushed = true;
-                
-                // Irányvektor számítása (gömb középpontjától a forráspont felé)
-                const pushDirection = new THREE.Vector3()
-                    .subVectors(sourcePosition, sphereCenter)
-                    .normalize();
-                
-                // Ha a forráspont pontosan a gömb középpontjában van, akkor ne hasson rá taszítóerő
-                // (Ez a kiáradás keletkezésekor fordul elő)
-                if (pushDirection.length() === 0) {
-                    // Kihagyjuk a sebesség hozzáadását ebben az esetben
-                    continue;
+
+            // Ütközési feltétel
+            if (distance <= sphereRadius + sourceRadius) {
+                const isOurEmitterSphere = userData.emitter === this;
+                const canInfluenceSource = !isOurEmitterSphere || userData.canPushSource;
+
+                if (sphereRadius >= 2 * sourceRadius && canInfluenceSource) {
+                    const pushDirection = new THREE.Vector3()
+                        .subVectors(sourcePosition, sphereCenter)
+                        .normalize();
+                    
+                    if (pushDirection.lengthSq() === 0) continue;
+
+                    // Új fizikai logika
+                    const velocityAgainstPush = -this.physics_velocity.dot(pushDirection);
+
+                    // Áthatolási feltétel: sebesség > 1 egység ÉS a gömb felé mozog
+                    if (this.physics_velocity.length() > PHYSICS_UNIT_SPEED && velocityAgainstPush > 0) {
+                        // Áthatolás: 1 egység sebesség elvesztése (ellenállás)
+                        const resistance = pushDirection.clone().multiplyScalar(PHYSICS_UNIT_SPEED);
+                        this.physics_velocity.add(resistance);
+                    } else {
+                        // Nincs áthatolás: a felület tolja a forráspontot
+                        const normalVelocityScalar = this.physics_velocity.dot(pushDirection);
+                        if (normalVelocityScalar < PHYSICS_UNIT_SPEED) {
+                            const impulseScalar = PHYSICS_UNIT_SPEED - normalVelocityScalar;
+                            const impulseVector = pushDirection.clone().multiplyScalar(impulseScalar);
+                            this.physics_velocity.add(impulseVector);
+                        }
+                    }
                 }
-                
-                // Tolási sebesség = gömb tágulási sebessége
-                const pushSpeed = userData.growthRate * 0.1; // 0.1 az alapméret szorzó
-                
-                // Sebesség hozzáadása
-                this.velocity.add(pushDirection.multiplyScalar(pushSpeed));
             }
-        }
-        
-        // Forráspont pozíciójának frissítése, ha tolják
-        if (this.isBeingPushed) {
-            this.mesh.position.add(this.velocity);
         }
     }
 }
@@ -1046,6 +997,7 @@ class WaveEmitter {
         let sourceSpeedX = 0; // Forráspont sebessége X-irányban
         let sourceSpeedY = 0; // Forráspont sebessége Y-irányban
         let lastEmissionTime = 0;
+        const PHYSICS_UNIT_SPEED = 0.02 * 0.1; // A gömb tágulási sebessége, mint fizikai egység (1 egység)
         let movementType = 'water'; // 'water', 'fire', 'circular' vagy 'spiral'
         let emitterVelocity = 0; // Kibocsájtó pont sebessége x irányben
         let emitterDirection = 1; // Mozgás iránya (1 vagy -1)
@@ -1066,7 +1018,7 @@ class WaveEmitter {
 
         // Csúszkák kezdőértékei a különböző mozgástípusokhoz (0 és 0.5 között)
         const initialSliderValues = {
-            fire:     { x: 1.5, y: 0.0 }, 
+            fire:     { x: 0.07, y: 0.0 }, 
             circular: { x: 0.1, y: 0.0 }, 
             spiral:   { x: 0.142, y: 0.09 }
         };
@@ -1107,165 +1059,7 @@ class WaveEmitter {
             scene.add(fillLight2);
             
             
-/* ========= WaveEmitter class ========= */
-class WaveEmitter {
-    constructor(mesh) {
-        this.mesh = mesh;           // source mesh (red point)
-        this.spheres = [];
-        this.lastEmissionTime = performance.now();
-        this.velocity = new THREE.Vector3(0, 0, 0); // Forráspont sebessége ütközés miatt
-        this.isBeingPushed = false; // Jelzi, hogy éppen tolják-e
-    }
-
-    get position() { return this.mesh.position; }
-
-    spawnSphere() {
-        // create a new sphere at current position
-        const geometry = new THREE.SphereGeometry(0.1, 32, 24);
-        const baseMaterial = new THREE.MeshPhongMaterial({
-            color: 0x6666ff,
-            transparent: sphereOpacity > 0,
-            opacity: 1 - sphereOpacity,
-            shininess: 80,
-            specular: 0x444444,
-            side: THREE.DoubleSide
-        });
-        const wireMaterial = new THREE.MeshBasicMaterial({
-            color: 0x404040,
-            wireframe: true,
-            transparent: false,
-            opacity: 1.0,
-            depthTest: true
-        });
-        const g = new THREE.Group();
-        const solid = new THREE.Mesh(geometry, baseMaterial);
-        const wire = new THREE.Mesh(geometry, wireMaterial);
-        g.add(solid);
-        g.add(wire);
-        // A gömb pozíciójának beállítása a forráspont aktuális pozíciójára
-        const currentPosition = this.mesh.position.clone();
-        g.position.copy(currentPosition);
-        g.userData = {
-            centerPosition: currentPosition,
-            scale: 0.1,
-            growthRate: 0.02,
-            life: 0,
-            baseMaterial,
-            wireframeMaterial: wireMaterial,
-            baseMesh: solid,
-            wireframeMesh: wire,
-            emitter: this,                   // Referencia a kibocsátó forráspontra
-            hasLeftSource: false,            // Jelzi, hogy a gömb egyszer már teljesen elhagyta-e a forráspontot
-            canPushSource: false             // Jelzi, hogy a gömb képes-e hatni a forráspontra
-        };
-        scene.add(g);
-        spheres.push(g);
-        this.spheres.push(g);
-        
-        // Mindig hozzáadjuk a pontot az időszálhoz, függetlenül attól, hogy a megjelenítés be van-e kapcsolva
-        // Tároljuk a pontot
-        // ------ Időszál kezelése több forrásponthoz igazítva ------
-        if (!this.timeline) {
-            // Minden emitter saját időszál‑listákat kap
-            this.timeline = { points: [], markers: [], lines: [] };
-        }
-        // Új pont felvétele az adott emitter időszálára
-        this.timeline.points.push(currentPosition.clone());
-        
-        // Sárga jelölő létrehozása
-        const markerGeometry = new THREE.SphereGeometry(0.009, 16, 16);
-        const markerMaterial = new THREE.MeshPhongMaterial({ color: 0xffff00, shininess: 80, specular: 0x444444 });
-        const marker = new THREE.Mesh(markerGeometry, markerMaterial);
-        marker.position.copy(currentPosition);
-        if (showTimeline) scene.add(marker);
-        timelineMarkers.push(marker);
-        this.timeline.markers.push(marker);
-        
-        // Az előző saját ponttal összekötő vonal elkészítése
-        if (this.timeline.points.length > 1) {
-            const pts = this.timeline.points;
-            const lineGeometry = new THREE.BufferGeometry().setFromPoints([
-                pts[pts.length - 2], pts[pts.length - 1]
-            ]);
-            const lineMaterial = new THREE.LineBasicMaterial({ color: 0xffff00 });
-            const line = new THREE.Line(lineGeometry, lineMaterial);
-            if (showTimeline) scene.add(line);
-            timelineLines.push(line);
-            this.timeline.lines.push(line);
-        }
-    }
-
-    update(now) {
-        const interval = 200 / emissionIntensity; // ms
-        if (now - this.lastEmissionTime >= interval) {
-            this.spawnSphere();
-            this.lastEmissionTime = now;
-        }
-    }
-
-    resync(now) { this.lastEmissionTime = now; }
-
-    // Ütközésdetektálás és tolás kezelése
-    checkCollisionAndPush() {
-        this.isBeingPushed = false;
-        this.velocity.set(0, 0, 0);
-
-        // Ellenőrizzük az összes gömbbal való ütközést
-        for (let sphere of spheres) {
-            const userData = sphere.userData;
-            const sphereCenter = userData.centerPosition;
-            const sphereRadius = userData.scale * 0.1; // 0.1 az alapméret
-            const sourcePosition = this.mesh.position;
-            
-            // Távolság számítása a gömb középpontja és a forráspont között
-            const distance = sphereCenter.distanceTo(sourcePosition);
-            
-            // A forráspont sugara
-            const sourceRadius = 0.007;
-            
-            // Ellenőrizzük, hogy a gömb hozzánk tartozik-e és képes-e hatást gyakorolni ránk
-            const isOurEmitterSphere = userData.emitter === this;
-            
-            // A forráspontot csak olyan gömbök taszíthatják, amelyek:
-            // 1. Vagy nem az adott forráspont bocsájtotta ki őket
-            // 2. Vagy már egyszer teljesen elhagyták a forráspontot és úgy érnek újra hozzá
-            // A userData.canPushSource flaget az updateSpheres függvény állítja be
-            const canInfluenceSource = !isOurEmitterSphere || userData.canPushSource;
-            
-            // Ha a forráspont a gömb felszínén vagy belül van, ÉS a gömb sugara legalább 2-szer nagyobb a forrásponténál,
-            // ÉS a gömb képes hatni a forráspontra
-            if (distance <= sphereRadius + sourceRadius && 
-                sphereRadius >= 2 * sourceRadius && 
-                canInfluenceSource) {
-                
-                this.isBeingPushed = true;
-                
-                // Irányvektor számítása (gömb középpontjától a forráspont felé)
-                const pushDirection = new THREE.Vector3()
-                    .subVectors(sourcePosition, sphereCenter)
-                    .normalize();
-                
-                // Ha a forráspont pontosan a gömb középpontjában van, akkor ne hasson rá taszítóerő
-                // (Ez a kiáradás keletkezésekor fordul elő)
-                if (pushDirection.length() === 0) {
-                    // Kihagyjuk a sebesség hozzáadását ebben az esetben
-                    continue;
-                }
-                
-                // Tolási sebesség = gömb tágulási sebessége
-                const pushSpeed = userData.growthRate * 0.1; // 0.1 az alapméret szorzó
-                
-                // Sebesség hozzáadása
-                this.velocity.add(pushDirection.multiplyScalar(pushSpeed));
-            }
-        }
-        
-        // Forráspont pozíciójának frissítése, ha tolják
-        if (this.isBeingPushed) {
-            this.mesh.position.add(this.velocity);
-        }
-    }
-}
+            <!-- A WaveEmitter osztály már globálisan van definiálva, itt nincs rá szükség. -->
 
 // Kibocsájtó pont létrehozása (sokkal kisebb piros gömb) - árnyékolt felülettel
             const emitterGeometry = new THREE.SphereGeometry(0.009, 16, 16); // 0.05 helyett 0.017 (kb 3x kisebb)
@@ -1341,38 +1135,14 @@ class WaveEmitter {
             
             sourceSpeedXSlider.addEventListener('input', (e) => {
                 sourceSpeedX = parseFloat(e.target.value);
-                document.getElementById('sourceSpeedXValue').textContent = sourceSpeedX.toFixed(1);
+                document.getElementById('sourceSpeedXValue').textContent = sourceSpeedX.toFixed(3);
                 console.log('sourceSpeedX changed to:', sourceSpeedX);
-                
-                // Frissítjük az alapvektort a csúszka változtatásakor
-                sourceVelocityCalculator.setBaseVelocity(
-                    movementType,
-                    sourceSpeedX,
-                    sourceSpeedY,
-                    currentXMultiplier,
-                    currentYMultiplier,
-                    circleRadius,
-                    circleAngle,
-                    emitterDirection
-                );
             });
 
             sourceSpeedYSlider.addEventListener('input', (e) => {
                 sourceSpeedY = parseFloat(e.target.value);
-                document.getElementById('sourceSpeedYValue').textContent = sourceSpeedY.toFixed(1);
+                document.getElementById('sourceSpeedYValue').textContent = sourceSpeedY.toFixed(3);
                 console.log('sourceSpeedY changed to:', sourceSpeedY);
-                
-                // Frissítjük az alapvektort a csúszka változtatásakor
-                sourceVelocityCalculator.setBaseVelocity(
-                    movementType,
-                    sourceSpeedX,
-                    sourceSpeedY,
-                    currentXMultiplier,
-                    currentYMultiplier,
-                    circleRadius,
-                    circleAngle,
-                    emitterDirection
-                );
             });
 
             circleRadiusSlider.addEventListener('input', (e) => {
@@ -2178,8 +1948,7 @@ function createSphereAt(sourceMesh) {
             
             // Emitterek visszaállítása
             emitters.forEach(emitter => {
-                emitter.velocity.set(0, 0, 0);
-                emitter.isBeingPushed = false;
+                emitter.physics_velocity.set(0, 0, 0);
 
 // ---- Időszál kiürítése minden emitternél ----
 if (emitter.timeline) {
@@ -2220,13 +1989,11 @@ if (emitter.timeline) {
         }
         
         function animate(time) {
+            const pos_before_frame = (emitters.length > 0 && emitters[0]) ? emitters[0].mesh.position.clone() : null;
             requestAnimationFrame(animate);
             
             // Billentyűzetes kamera mozgatás kezelése
             handleKeyboardMovement();
-            
-            // Forráspont sebességének számítása és megjelenítése
-            updateSourceVelocityDisplay();
             
             // Magyar billentyűk kezelése a kamera forgatásához
             const rotationSpeed = 0.05;
@@ -2336,29 +2103,54 @@ if (emitter.timeline) {
             
             // Kibocsájtó pont mozgatása a kiválasztott mozgástípus szerint
             if (!isPaused) {
-                // Kalibrációs tényező a csúszkák új értéktartományához (0.02 * 0.1 = 0.002 a gömb tágulási sebessége)
-                const baseExpansionSpeed = 0.002;
-                
                 if (movementType === 'fire') {
-                    // console.log('Animating fire. SpeedX:', sourceSpeedX, 'MultX:', currentXMultiplier, 'SpeedY:', sourceSpeedY, 'MultY:', currentYMultiplier, 'Direction:', emitterDirection);
-                    emitterPoint.position.x += sourceSpeedX * baseExpansionSpeed * emitterDirection;
-                    emitterPoint.position.y += sourceSpeedY * baseExpansionSpeed; // Y mozgás hozzáadása
-                } 
+                    // A 'fire' mozgás már additív, de a jövőben ezt is érdemes lehet a physics_velocity-n keresztül kezelni.
+                    // Jelenleg a felhasználói kérésnek megfelelően csak a circular és spiral mozgást javítjuk.
+                    emitterPoint.position.x += sourceSpeedX * currentXMultiplier * emitterDirection;
+                    emitterPoint.position.y += sourceSpeedY * currentYMultiplier;
+                }
                 else if (movementType === 'circular') {
-                    circleAngle += sourceSpeedX * baseExpansionSpeed / circleRadius;
-                    const x_pos = Math.cos(circleAngle) * circleRadius;
-                    const z_pos = Math.sin(circleAngle) * circleRadius;
-                    emitterPoint.position.y += sourceSpeedY * baseExpansionSpeed; // Y elmozdulás hozzáadása
-                    emitterPoint.position.set(x_pos, emitterPoint.position.y, z_pos);
+                    const angular_displacement = sourceSpeedX * currentXMultiplier;
+                    const prev_angle = circleAngle;
+                    circleAngle += angular_displacement;
+
+                    const prev_x = Math.cos(prev_angle) * circleRadius;
+                    const prev_z = Math.sin(prev_angle) * circleRadius;
+
+                    const new_x = Math.cos(circleAngle) * circleRadius;
+                    const new_z = Math.sin(circleAngle) * circleRadius;
+
+                    const displacement = new THREE.Vector3(
+                        new_x - prev_x,
+                        sourceSpeedY * currentYMultiplier, // A függőleges mozgás egyszerű sebesség
+                        new_z - prev_z
+                    );
+                    
+                    // A pozíciót a kiszámolt elmozdulással frissítjük, ahelyett hogy felülírnánk.
+                    emitterPoint.position.add(displacement);
                 }
                 else if (movementType === 'spiral') {
-                    const baseAngularSpeed = sourceSpeedX * baseExpansionSpeed / circleRadius;
-                    circleAngle += baseAngularSpeed; 
-                    const x_pos = Math.cos(circleAngle) * circleRadius;
-                    const z_pos = Math.sin(circleAngle) * circleRadius;
+                    const angular_displacement = sourceSpeedX * currentXMultiplier * 0.5;
+                    const prev_angle = circleAngle;
+                    circleAngle += angular_displacement;
+
+                    const prev_x = Math.cos(prev_angle) * circleRadius;
+                    const prev_z = Math.sin(prev_angle) * circleRadius;
+
+                    const new_x = Math.cos(circleAngle) * circleRadius;
+                    const new_z = Math.sin(circleAngle) * circleRadius;
+
+                    const y_displacement = sourceSpeedY * currentYMultiplier;
                     
-                    spiralHeight += sourceSpeedY * baseExpansionSpeed; // Y-slider vezérli az emelkedést
-                    emitterPoint.position.set(x_pos, spiralHeight, z_pos);
+                    const displacement = new THREE.Vector3(
+                        new_x - prev_x,
+                        y_displacement,
+                        new_z - prev_z
+                    );
+
+                    // A pozíciót itt is additív módon frissítjük.
+                    emitterPoint.position.add(displacement);
+                    spiralHeight += y_displacement; // A magasságot továbbra is követjük, de a pozíciót nem írja felül.
                 }
             }
             
@@ -2371,21 +2163,30 @@ if (emitter.timeline) {
                     emitter.update(currentTime);
                 });
                 
-                // Ütközésdetektálás és forráspontok tolása
+                // Fizikai modell frissítése: sebesség alkalmazása és új erők számítása
                 emitters.forEach(emitter => {
-                    emitter.checkCollisionAndPush();
-                    
-                    // Frissítjük a sebességszámító környezeti sebességét
-                    // Csak akkor, ha ténylegesen van taszítás
-                    if (sourceVelocityCalculator && emitter.isBeingPushed && emitter.velocity.length() > 0) {
-                        sourceVelocityCalculator.addEnvironmentalEffect(emitter.velocity);
-                        // Azonnal frissítjük a kijelzést is, hogy a taszítás hatása látszódjon
-                        updateSourceVelocityDisplay();
-                    }
+                    // Először alkalmazzuk az előző frame-ben számított fizikai sebességet a pozícióra
+                    emitter.mesh.position.add(emitter.physics_velocity);
+
+                    // Majd az új pozíció alapján kiszámítjuk a következő frame-re ható erőket (ütközéseket)
+                    emitter.updateCollisionPhysics();
                 });
                 
                 // Gömbök frissítése
                 updateSpheres();
+            }
+            // Forráspont sebességének kijelzése a teljes, tényleges elmozdulás alapján
+            if (pos_before_frame) {
+                const pos_after_frame = emitters[0].mesh.position;
+                const total_velocity_this_frame = new THREE.Vector3().subVectors(pos_after_frame, pos_before_frame);
+                const speed = total_velocity_this_frame.length();
+                
+                // A sebességet a fizikai egységhez (gömb tágulási sebessége) viszonyítjuk
+                const displaySpeed = speed / PHYSICS_UNIT_SPEED;
+                const velocityElement = document.getElementById('velocity-value');
+                if (velocityElement) {
+                    velocityElement.textContent = displaySpeed.toFixed(3);
+                }
             }
             
             // Renderelés mindig fut (hogy az egér mozgatás látható legyen pause alatt is)
@@ -2397,70 +2198,6 @@ if (emitter.timeline) {
         
         // Oldal frissítésekor alapállapotba állítás
         // A window.onbeforeunload esemény nem megfelelő erre a célra, mert az oldal bezárásakor is lefut
-        
-        // Forráspont sebességének számítása és megjelenítése
-        function updateSourceVelocityDisplay() {
-            // Csak akkor számoljuk, ha nem vízelem módban vagyunk és nincs szüneteltetve
-            if (movementType !== 'water' && !isPaused) {
-                // Ellenőrizzük, hogy van-e aktív emitter, ami éppen taszítás alatt áll
-                let isAnyEmitterPushed = false;
-                let activeEmitter = null;
-                
-                for (let emitter of emitters) {
-                    if (emitter.isBeingPushed && emitter.velocity.length() > 0) {
-                        isAnyEmitterPushed = true;
-                        activeEmitter = emitter;
-                        break;
-                    }
-                }
-                
-                // Ha van taszítás alatt álló emitter, akkor annak a sebességét használjuk
-                if (isAnyEmitterPushed && activeEmitter) {
-                    // Frissítjük a környezeti sebességet a taszítás alapján
-                    sourceVelocityCalculator.addEnvironmentalEffect(activeEmitter.velocity);
-                } else {
-                    // Ha nincs taszítás, akkor a csúszkák alapján számoljuk a sebességet
-                    sourceVelocityCalculator.setBaseVelocity(
-                        movementType,
-                        sourceSpeedX,
-                        sourceSpeedY,
-                        currentXMultiplier,
-                        currentYMultiplier,
-                        circleRadius,
-                        circleAngle,
-                        emitterDirection
-                    );
-                }
-                
-                // Sebesség arány kiszámítása a környezeti hatásokkal együtt
-                const velocityRatio = sourceVelocityCalculator.calculateVelocityRatio(true);
-                
-                // Érték megjelenítése a panelen
-                const velocityDisplay = document.getElementById('sourceVelocityValue');
-                if (velocityDisplay) {
-                    velocityDisplay.textContent = sourceVelocityCalculator.formatVelocityDisplay(velocityRatio);
-                    
-                    // Színezés az érték alapján (1.0 körül kék, nagyobb értékeknél piros, kisebbeknél zöld)
-                    if (velocityRatio > 1.1) {
-                        velocityDisplay.style.color = '#ef4444'; // piros
-                    } else if (velocityRatio < 0.9) {
-                        velocityDisplay.style.color = '#10b981'; // zöld
-                    } else {
-                        velocityDisplay.style.color = '#3b82f6'; // kék (közel 1.0)
-                    }
-                    
-                    // Debug információ a konzolra
-                    console.log("Sebesség arány:", velocityRatio, "Taszítás alatt:", isAnyEmitterPushed);
-                }
-            } else {
-                // Vízelem módban vagy szünet esetén nullázás
-                const velocityDisplay = document.getElementById('sourceVelocityValue');
-                if (velocityDisplay) {
-                    velocityDisplay.textContent = '0.000';
-                    velocityDisplay.style.color = '#3b82f6'; // alapértelmezett kék
-                }
-            }
-        }
         
         // Panel összezárás/kinyitás gomb eseménykezelője
         const toggleControlsBtn = document.getElementById('toggleControlsBtn');

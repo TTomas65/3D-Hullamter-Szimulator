@@ -86,8 +86,18 @@ class SourceVelocityCalculator {
         // Mindig frissítjük a környezeti sebességet, ha van taszítás
         // Nem vizsgáljuk az időt, mert a taszítás felülírja a csúszka értékeit
         if (pushVelocity && pushVelocity.length() > 0) {
+            // Közvetlenül másoljuk a taszítási sebességet a környezeti sebességbe
             this.environmentalVelocity.copy(pushVelocity);
             console.log("Környezeti sebesség frissítve:", this.environmentalVelocity);
+            
+            // Ellenőrizzük, hogy a környezeti sebesség nem túl kicsi-e
+            if (this.environmentalVelocity.length() < 0.0001) {
+                // Ha nagyon kicsi, akkor nullázzuk, hogy ne maradjon "lebegő" érték
+                this.environmentalVelocity.set(0, 0, 0);
+            }
+        } else {
+            // Ha nincs érvényes taszítási sebesség, akkor visszaállunk az alapsebességre
+            this.environmentalVelocity.copy(this.baseVelocity);
         }
     }
 
@@ -143,6 +153,21 @@ class SourceVelocityCalculator {
      */
     formatVelocityDisplay(ratio) {
         return ratio.toFixed(3);
+    }
+    
+    /**
+     * Visszaadja az aktuális sebességvektort
+     * @param {boolean} useEnvironmental - Környezeti hatásokat is figyelembe vegyük-e
+     * @returns {THREE.Vector3} - Az aktuális sebességvektor
+     */
+    getCurrentVelocity(useEnvironmental = true) {
+        // Ha a környezeti sebesség aktív és nem nulla, akkor azt használjuk
+        if (useEnvironmental && this.environmentalVelocity.length() > 0.0001) {
+            return this.environmentalVelocity.clone();
+        } else {
+            // Egyébként az alapvektort használjuk
+            return this.baseVelocity.clone();
+        }
     }
     
     /**
