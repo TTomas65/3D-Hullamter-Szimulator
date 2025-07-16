@@ -735,6 +735,7 @@
                 <div class="instruction-item"><strong>X:</strong> Forgatás X tengely körül</div>
                 <div class="instruction-item"><strong>Y:</strong> Forgatás Y tengely körül</div>
                 <div class="instruction-item"><strong>P:</strong> Szünet / Folytatás</div>
+                <div class="instruction-item"><strong>O:</strong> Sebesség szabályozás (1x → 1/2x → 1/4x → 1/8x → 1x)</div>
                 <div class="instruction-item"><strong>ő / ú:</strong> Kamera forgatása balra / jobbra</div>
                 <div class="instruction-item"><strong>á / ű:</strong> Kamera forgatása fel / le</div>
             </div>
@@ -878,7 +879,7 @@ class WaveEmitter {
     }
 
     update(now) {
-        const interval = 200 / emissionIntensity; // ms
+        const interval = 200 / (emissionIntensity * speedMultiplier); // ms - lassabb sebesség = hosszabb intervallum
         if (now - this.lastEmissionTime >= interval) {
             this.spawnSphere();
             this.lastEmissionTime = now;
@@ -899,34 +900,49 @@ class WaveEmitter {
             const sourcePosition = this.mesh.position;
             const distance = sphereCenter.distanceTo(sourcePosition);
 
-            // Ütközési feltétel
+            // Ütközési feltétel - a forráspont a gömb felületén vagy belül van
             if (distance <= sphereRadius + sourceRadius) {
                 const isOurEmitterSphere = userData.emitter === this;
                 const canInfluenceSource = !isOurEmitterSphere || userData.canPushSource;
 
                 if (sphereRadius >= 2 * sourceRadius && canInfluenceSource) {
+                    // Irányvektor a gömb középpontjától a forráspont felé (taszítás iránya)
                     const pushDirection = new THREE.Vector3()
                         .subVectors(sourcePosition, sphereCenter)
                         .normalize();
                     
                     if (pushDirection.lengthSq() === 0) continue;
 
-                    // Új fizikai logika
-                    const velocityAgainstPush = -this.physics_velocity.dot(pushDirection);
+                    // Ellenőrizzük, hogy a forráspont belülről kifelé halad-e
+                    // Ez akkor történik, ha a sebességvektor a taszítás irányába mutat
+                    const velocityInPushDirection = this.physics_velocity.dot(pushDirection);
+                    
+                    // Ha a forráspont belülről kifelé mozog (pozitív dot product), 
+                    // akkor ne legyen hatás - áthaladás
+                    if (velocityInPushDirection > 0) {
+                        // Belülről kifelé mozgás - nincs kölcsönhatás
+                        continue;
+                    }
 
-                    // Áthatolási feltétel: sebesség > 1 egység ÉS a gömb felé mozog
-                    if (this.physics_velocity.length() > PHYSICS_UNIT_SPEED && velocityAgainstPush > 0) {
-                        // Áthatolás: 1 egység sebesség elvesztése (ellenállás)
-                        const resistance = pushDirection.clone().multiplyScalar(PHYSICS_UNIT_SPEED);
-                        this.physics_velocity.add(resistance);
-                    } else {
-                        // Nincs áthatolás: a felület tolja a forráspontot
-                        const normalVelocityScalar = this.physics_velocity.dot(pushDirection);
-                        if (normalVelocityScalar < PHYSICS_UNIT_SPEED) {
-                            const impulseScalar = PHYSICS_UNIT_SPEED - normalVelocityScalar;
-                            const impulseVector = pushDirection.clone().multiplyScalar(impulseScalar);
+                    // Eredő sebesség számítása
+                    const totalSpeed = this.physics_velocity.length();
+                    
+                    // Sebesség normalizálása fizikai egységre (PHYSICS_UNIT_SPEED = 1 egység)
+                    const normalizedSpeed = totalSpeed / PHYSICS_UNIT_SPEED;
+
+                    if (normalizedSpeed <= 1.0) {
+                        // Alacsony sebesség (≤1): csak taszítás, nincs áthatolás
+                        // A forráspont sebességét a taszítás irányába állítjuk be
+                        const requiredSpeed = PHYSICS_UNIT_SPEED - Math.abs(velocityInPushDirection);
+                        if (requiredSpeed > 0) {
+                            const impulseVector = pushDirection.clone().multiplyScalar(requiredSpeed);
                             this.physics_velocity.add(impulseVector);
                         }
+                    } else {
+                        // Nagy sebesség (>1): áthatolás, sebesség csökken 1 egységgel
+                        // A sebesség 1 fizikai egységgel csökken a taszítás irányában
+                        const resistanceVector = pushDirection.clone().multiplyScalar(-PHYSICS_UNIT_SPEED);
+                        this.physics_velocity.add(resistanceVector);
                     }
                 }
             }
@@ -951,6 +967,7 @@ class WaveEmitter {
         let cameraCenter = { x: 0, y: 0, z: 0 }; // Kamera középpontja
         let keysPressed = {};
         let isPaused = false;
+        let speedMultiplier = 1.0; // Sebesség szorzó - 1.0 = eredeti sebesség, 0.5 = fele sebesség, stb.
         
         // Időszál megjelenítés változói
         let showTimeline = false; // Időszál megjelenítése be/ki
@@ -1468,6 +1485,24 @@ if (movementType === 'dual') {
                     document.getElementById('pauseBtn').textContent = isPaused ? 'Folytat' : 'Szünet';
                 }
             }
+            
+            // O billentyű kezelése a sebesség szabályozásához
+            if (event.code === 'KeyO') {
+                // Csak a billentyű lenyomásakor váltson, ne folyamatosan
+                if (!event.repeat) {
+                    // Sebesség váltás: 1.0 -> 0.5 -> 0.25 -> 0.125 -> 1.0 (körforgás)
+                    if (speedMultiplier === 1.0) {
+                        speedMultiplier = 0.5; // Fele sebesség
+                    } else if (speedMultiplier === 0.5) {
+                        speedMultiplier = 0.25; // Negyed sebesség
+                    } else if (speedMultiplier === 0.25) {
+                        speedMultiplier = 0.125; // Nyolcad sebesség
+                    } else {
+                        speedMultiplier = 1.0; // Vissza az eredeti sebességre
+                    }
+                    console.log('Sebesség módosítva:', speedMultiplier);
+                }
+            }
         }
         
         function onKeyUp(event) {
@@ -1734,12 +1769,12 @@ function handleKeyboardMovement() {
             
             // Felhasználói adatok tárolása a későbbi animációhoz
             sphere.userData = {
-                centerPosition: emitterPoint.position.clone(),
+                centerPosition: new THREE.Vector3(emitterPoint.position.x, emitterPoint.position.y, emitterPoint.position.z),
                 scale: 0.1,
                 growthRate: 0.02,
                 life: 0,
-                baseMaterial: baseSphereMesh.material,
-                wireframeMaterial: wireframeSphereMesh.material,
+                baseMaterial: baseMaterial,
+                wireframeMaterial: wireframeMaterial,
                 baseMesh: baseSphereMesh,
                 wireframeMesh: wireframeSphereMesh
             };
@@ -2106,11 +2141,11 @@ if (emitter.timeline) {
                 if (movementType === 'fire') {
                     // A 'fire' mozgás már additív, de a jövőben ezt is érdemes lehet a physics_velocity-n keresztül kezelni.
                     // Jelenleg a felhasználói kérésnek megfelelően csak a circular és spiral mozgást javítjuk.
-                    emitterPoint.position.x += sourceSpeedX * currentXMultiplier * emitterDirection;
-                    emitterPoint.position.y += sourceSpeedY * currentYMultiplier;
+                    emitterPoint.position.x += sourceSpeedX * currentXMultiplier * emitterDirection * speedMultiplier;
+                    emitterPoint.position.y += sourceSpeedY * currentYMultiplier * speedMultiplier;
                 }
                 else if (movementType === 'circular') {
-                    const angular_displacement = sourceSpeedX * currentXMultiplier;
+                    const angular_displacement = sourceSpeedX * currentXMultiplier * speedMultiplier;
                     const prev_angle = circleAngle;
                     circleAngle += angular_displacement;
 
@@ -2122,7 +2157,7 @@ if (emitter.timeline) {
 
                     const displacement = new THREE.Vector3(
                         new_x - prev_x,
-                        sourceSpeedY * currentYMultiplier, // A függőleges mozgás egyszerű sebesség
+                        sourceSpeedY * currentYMultiplier * speedMultiplier, // A függőleges mozgás egyszerű sebesség
                         new_z - prev_z
                     );
                     
@@ -2130,7 +2165,7 @@ if (emitter.timeline) {
                     emitterPoint.position.add(displacement);
                 }
                 else if (movementType === 'spiral') {
-                    const angular_displacement = sourceSpeedX * currentXMultiplier * 0.5;
+                    const angular_displacement = sourceSpeedX * currentXMultiplier * 0.5 * speedMultiplier;
                     const prev_angle = circleAngle;
                     circleAngle += angular_displacement;
 
@@ -2140,7 +2175,7 @@ if (emitter.timeline) {
                     const new_x = Math.cos(circleAngle) * circleRadius;
                     const new_z = Math.sin(circleAngle) * circleRadius;
 
-                    const y_displacement = sourceSpeedY * currentYMultiplier;
+                    const y_displacement = sourceSpeedY * currentYMultiplier * speedMultiplier;
                     
                     const displacement = new THREE.Vector3(
                         new_x - prev_x,
@@ -2260,8 +2295,8 @@ function updateSpheres() {
         // A pozíció a rögzített középponton marad
         sphere.position.copy(userData.centerPosition);
         
-        // Folyamatos méret növelése
-        userData.scale += userData.growthRate;
+        // Folyamatos méret növelése - a sebesség szorzóval módosítva
+        userData.scale += userData.growthRate * speedMultiplier;
         sphere.scale.set(userData.scale, userData.scale, userData.scale);
         
         // Élettartam növelése
