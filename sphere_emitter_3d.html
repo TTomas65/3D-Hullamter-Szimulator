@@ -662,14 +662,14 @@
             
             <div class="control-group">
                 <label for="sourceSpeedX">Forráspont sebessége X-tengely</label>
-                <input type="range" id="sourceSpeedX" min="0" max="0.5" step="0.001" value="0">
-                <div class="value-display" id="sourceSpeedXValue">0.000</div>
+                <input type="range" id="sourceSpeedX" min="0" max="6" step="0.01" value="1.75">
+                <div class="value-display" id="sourceSpeedXValue">1.75</div>
             </div>
 
             <div class="control-group">
                 <label for="sourceSpeedY">Forráspont sebessége Y-tengely</label>
-                <input type="range" id="sourceSpeedY" min="0" max="0.5" step="0.001" value="0">
-                <div class="value-display" id="sourceSpeedYValue">0.000</div>
+                <input type="range" id="sourceSpeedY" min="0" max="6" step="0.01" value="0">
+                <div class="value-display" id="sourceSpeedYValue">0.00</div>
             </div>
 
             <div class="control-group" id="circleRadiusControlGroup" style="display: none;">
@@ -839,7 +839,8 @@ class WaveEmitter {
             wireframeMesh: wire,
             emitter: this,                   // Referencia a kibocsátó forráspontra
             hasLeftSource: false,            // Jelzi, hogy a gömb egyszer már teljesen elhagyta-e a forráspontot
-            canPushSource: false             // Jelzi, hogy a gömb képes-e hatni a forráspontra
+            canPushSource: false,            // Jelzi, hogy a gömb képes-e hatni a forráspontra
+            hasPenetrated: false             // Jelzi, hogy a forráspont áthatoláson esett át ezen a gömb felületén
         };
         scene.add(g);
         spheres.push(g);
@@ -917,33 +918,75 @@ class WaveEmitter {
                     // Ez akkor történik, ha a sebességvektor a taszítás irányába mutat
                     const velocityInPushDirection = this.physics_velocity.dot(pushDirection);
                     
-                    // Ha a forráspont belülről kifelé mozog (pozitív dot product), 
-                    // akkor ne legyen hatás - áthaladás
-                    if (velocityInPushDirection > 0) {
-                        // Belülről kifelé mozgás - nincs kölcsönhatás
-                        continue;
-                    }
+                    // JAVÍTÁS: Ne hagyjuk ki az ütközés feldolgozását belülről kifelé mozgásnál
+                    // Minden ütközést fel kell dolgozni, hogy az áthatolás után is működjön az ütközésdetektálás
+                    const isMovingOutward = velocityInPushDirection > 0;
 
+                    
                     // Eredő sebesség számítása
                     const totalSpeed = this.physics_velocity.length();
                     
                     // Sebesség normalizálása fizikai egységre (PHYSICS_UNIT_SPEED = 1 egység)
                     const normalizedSpeed = totalSpeed / PHYSICS_UNIT_SPEED;
+                    
+
+                    console.log(`Collision DEBUG: totalSpeed=${totalSpeed.toFixed(4)}, normalizedSpeed=${normalizedSpeed.toFixed(4)}`);
+                    
 
                     if (normalizedSpeed <= 1.0) {
                         // Alacsony sebesség (≤1): csak taszítás, nincs áthatolás
-                        // A forráspont sebességét a taszítás irányába állítjuk be
-                        const requiredSpeed = PHYSICS_UNIT_SPEED - Math.abs(velocityInPushDirection);
-                        if (requiredSpeed > 0) {
-                            const impulseVector = pushDirection.clone().multiplyScalar(requiredSpeed);
-                            this.physics_velocity.add(impulseVector);
+                        if (isMovingOutward) {
+                            // Belülről kifelé mozgás: áthatolás folyamatban, sebesség marad
+                            userData.hasPenetrated = true;
+                            userData.hasLeftSource = true;
+                            userData.canPushSource = true;
+                            console.log('LOW SPEED: Moving outward - penetration continues');
+                        } else {
+                            // Kívülről befelé vagy érintőleges mozgás: taszítás
+                            // De csak akkor, ha még nincs áthatolás folyamatban
+                            if (!userData.hasPenetrated) {
+                                this.physics_velocity = pushDirection.clone().multiplyScalar(PHYSICS_UNIT_SPEED);
+                                console.log('LOW SPEED: Set velocity to push direction', this.physics_velocity);
+                            } else {
+                                // Áthatolás folyamatban - hagyjuk folytatni a mozgást
+                                console.log('LOW SPEED: Penetration in progress - continue movement');
+                            }
                         }
                     } else {
-                        // Nagy sebesség (>1): áthatolás, sebesség csökken 1 egységgel
-                        // A sebesség 1 fizikai egységgel csökken a taszítás irányában
-                        const resistanceVector = pushDirection.clone().multiplyScalar(-PHYSICS_UNIT_SPEED);
-                        this.physics_velocity.add(resistanceVector);
+                        // Nagy sebesség (>1): áthatolás vagy sebességcsökkentés
+                        if (isMovingOutward) {
+                            // Belülről kifelé mozgás: áthatolás folyamatban, sebesség nem változik
+                            userData.hasPenetrated = true;
+                            userData.hasLeftSource = true;
+                            userData.canPushSource = true;
+                            console.log('HIGH SPEED: Moving outward - penetration continues, no speed reduction');
+                        } else {
+                            // Kívülről befelé mozgás: szembehaladás, sebességcsökkentés
+                            if (!userData.hasReducedSpeed) {
+                                const oldVelocity = this.physics_velocity.clone();
+                                const oldSpeed = oldVelocity.length();
+                                
+                                // A sebesség 1 fizikai egységgel csökken a mozgás irányában
+                                const currentDirection = this.physics_velocity.clone().normalize();
+                                const reductionVector = currentDirection.multiplyScalar(-PHYSICS_UNIT_SPEED);
+                                this.physics_velocity.add(reductionVector);
+                                
+                                const newSpeed = this.physics_velocity.length();
+                                console.log(`HIGH SPEED: Collision - reduced speed from ${(oldSpeed/PHYSICS_UNIT_SPEED).toFixed(3)} to ${(newSpeed/PHYSICS_UNIT_SPEED).toFixed(3)}`);
+                                
+                                // Jelöljük meg, hogy ez a gömb már okozott sebességcsökkenést
+                                userData.hasReducedSpeed = true;
+                                userData.hasPenetrated = true;
+                                userData.hasLeftSource = true;
+                                userData.canPushSource = true;
+                            } else {
+                                // Már csökkentünk a sebességen ennél a gömbnél
+                                console.log('HIGH SPEED: Already reduced speed for this sphere');
+                            }
+                        }
                     }
+
+                    
                 }
             }
         }
@@ -1011,10 +1054,11 @@ class WaveEmitter {
         // Beállítások
         let emissionIntensity = 0.1;
         let sphereOpacity = 0.5; // Alapértelmezett 0.5 átlátszóság
-        let sourceSpeedX = 0; // Forráspont sebessége X-irányban
+        let sourceSpeedX = 1.75; // Forráspont sebessége X-irányban (kezdeti érték)
         let sourceSpeedY = 0; // Forráspont sebessége Y-irányban
         let lastEmissionTime = 0;
-        const PHYSICS_UNIT_SPEED = 0.02 * 0.1; // A gömb tágulási sebessége, mint fizikai egység (1 egység)
+        const PHYSICS_UNIT_SPEED = 0.002; // A gömb tágulási sebessége, mint fizikai egység (1 egység)
+        //const PHYSICS_UNIT_SPEED2 = 0.002; // A forráspont sebessége, mint fizikai egység (1 egység)
         let movementType = 'water'; // 'water', 'fire', 'circular' vagy 'spiral'
         let emitterVelocity = 0; // Kibocsájtó pont sebessége x irányben
         let emitterDirection = 1; // Mozgás iránya (1 vagy -1)
@@ -1026,18 +1070,18 @@ class WaveEmitter {
 
         // Sebesség szorzók a különböző mozgástípusokhoz (ezeket az értékeket lehet finomhangolni)
         const speedMultipliers = {
-            fire:     { x: 0.05, y: 0.05 }, // Tűzelem: x-sebesség szorzó, y-sebesség szorzó
-            circular: { x: 0.03, y: 0.03 }, // Körmozgás: x->szögsebesség szorzó, y->függőleges sebesség szorzó
-            spiral:   { x: 0.05, y: 0.05 }  // Spirál: x->alapsebesség (szög/sugár) szorzó, y->emelkedési sebesség szorzó
+            fire:     { x: 0.002, y: 0.002 }, // Tűzelem: csúszka érték 0.1 = gömb növekedési sebesség (0.002)
+            circular: { x: 0.002, y: 0.002 }, // Körmozgás: kicsit lassabb szorzó
+            spiral:   { x: 0.002, y: 0.002 }  // Spirál: eredeti értékek
         };
         let currentXMultiplier = 0; // Az aktuálisan kiválasztott mozgástípus X-irányú szorzója
         let currentYMultiplier = 0; // Az aktuálisan kiválasztott mozgástípus Y-irányú szorzója
 
-        // Csúszkák kezdőértékei a különböző mozgástípusokhoz (0 és 0.5 között)
+        // Csúszkák kezdőértékei a különböző mozgástípusokhoz (0 és 6 között)
         const initialSliderValues = {
-            fire:     { x: 0.07, y: 0.0 }, 
-            circular: { x: 0.1, y: 0.0 }, 
-            spiral:   { x: 0.142, y: 0.09 }
+            fire:     { x: 1.75, y: 0.0 }, 
+            circular: { x: 2.0, y: 0.0 }, 
+            spiral:   { x: 2.84, y: 1.8 }
         };
         
         // Inicializálás
@@ -1152,14 +1196,28 @@ class WaveEmitter {
             
             sourceSpeedXSlider.addEventListener('input', (e) => {
                 sourceSpeedX = parseFloat(e.target.value);
-                document.getElementById('sourceSpeedXValue').textContent = sourceSpeedX.toFixed(3);
+                document.getElementById('sourceSpeedXValue').textContent = sourceSpeedX.toFixed(2);
                 console.log('sourceSpeedX changed to:', sourceSpeedX);
+                
+                // Ha tűzelem módban vagyunk, akkor a physics_velocity-t is frissítjük
+                if (movementType === 'fire' && emitters[0]) {
+                    const fireVelocityX = sourceSpeedX * currentXMultiplier * emitterDirection * speedMultiplier;
+                    emitters[0].physics_velocity.x = fireVelocityX;
+                    console.log('SourceSpeedX slider changed, new physics velocity X:', fireVelocityX);
+                }
             });
 
             sourceSpeedYSlider.addEventListener('input', (e) => {
                 sourceSpeedY = parseFloat(e.target.value);
-                document.getElementById('sourceSpeedYValue').textContent = sourceSpeedY.toFixed(3);
+                document.getElementById('sourceSpeedYValue').textContent = sourceSpeedY.toFixed(2);
                 console.log('sourceSpeedY changed to:', sourceSpeedY);
+                
+                // Ha tűzelem módban vagyunk, akkor a physics_velocity-t is frissítjük
+                if (movementType === 'fire' && emitters[0]) {
+                    const fireVelocityY = sourceSpeedY * currentYMultiplier * speedMultiplier;
+                    emitters[0].physics_velocity.y = fireVelocityY;
+                    console.log('SourceSpeedY slider changed, new physics velocity Y:', fireVelocityY);
+                }
             });
 
             circleRadiusSlider.addEventListener('input', (e) => {
@@ -1179,13 +1237,54 @@ class WaveEmitter {
                 circleAngle = 0;
                 spiralHeight = 0;
 
-                // A globális 'movementType' változót használjuk, amit az eseménykezelő elején frissítünk
+                // ELŐSZÖR frissítjük a multiplier értékeket
                 if (speedMultipliers[movementType] && typeof speedMultipliers[movementType] === 'object') {
                     currentXMultiplier = speedMultipliers[movementType].x || 0;
                     currentYMultiplier = speedMultipliers[movementType].y || 0;
                 } else { // water vagy nem definiált x/y
                     currentXMultiplier = 0;
                     currentYMultiplier = 0;
+                }
+                
+                // MÁSODSZOR ellenőrizzük, hogy kell-e alapértelmezett értékeket beállítani
+                // Csak akkor írjuk felül a csúszkákat, ha jelenleg 0-n vannak (új indítás)
+                if (initialSliderValues[movementType] && sourceSpeedX === 0 && sourceSpeedY === 0) {
+                    const initX = initialSliderValues[movementType].x;
+                    const initY = initialSliderValues[movementType].y;
+                    
+                    sourceSpeedXSlider.value = initX;
+                    sourceSpeedX = initX;
+                    document.getElementById('sourceSpeedXValue').textContent = initX.toFixed(2);
+                    console.log('Set sourceSpeedX to initial (was 0):', initX);
+
+                    sourceSpeedYSlider.value = initY;
+                    sourceSpeedY = initY;
+                    document.getElementById('sourceSpeedYValue').textContent = initY.toFixed(2);
+                    console.log('Set sourceSpeedY to initial (was 0):', initY);
+                } else if (!initialSliderValues[movementType] && movementType === 'water') {
+                    // Csak víz módban nullázzuk
+                    sourceSpeedXSlider.value = 0;
+                    sourceSpeedX = 0;
+                    document.getElementById('sourceSpeedXValue').textContent = '0.000';
+                    
+                    sourceSpeedYSlider.value = 0;
+                    sourceSpeedY = 0;
+                    document.getElementById('sourceSpeedYValue').textContent = '0.000';
+                    console.log('Water mode: setting speeds to 0.');
+                } else {
+                    console.log('Keeping existing slider values: X=', sourceSpeedX, 'Y=', sourceSpeedY);
+                }
+                
+                // VÉGÜL állítjuk be a fizikai sebességet (most már helyes sourceSpeedX/Y értékekkel)
+                if (movementType === 'fire' && emitters[0]) {
+                    // Egyszerű konverzió: a csúszka értékek közvetlenül fizikai sebességgé válnak
+                    const fireVelocityX = sourceSpeedX * currentXMultiplier * emitterDirection * speedMultiplier;
+                    const fireVelocityY = sourceSpeedY * currentYMultiplier * speedMultiplier;
+                    emitters[0].physics_velocity.set(fireVelocityX, fireVelocityY, 0);
+                    console.log('Fire mode physics velocity set to:', fireVelocityX, fireVelocityY);
+                } else if (emitters[0]) {
+                    // Más mozgástípusoknál nullázzuk a fizikai sebességet
+                    emitters[0].physics_velocity.set(0, 0, 0);
                 }
                 console.log('Movement type changed to:', movementType, 'New Multipliers X:', currentXMultiplier, 'Y:', currentYMultiplier);
                 emitterPoint.visible = (movementType !== 'water');
@@ -1245,31 +1344,7 @@ if (movementType === 'dual') {
                     circleRadiusControlGroup.style.display = 'none';
                 }
 
-                // Csúszkák és sourceSpeed értékek beállítása az initialSliderValues alapján
-                if (initialSliderValues[movementType]) {
-                    const initX = initialSliderValues[movementType].x;
-                    const initY = initialSliderValues[movementType].y;
-
-                    sourceSpeedXSlider.value = initX;
-                    sourceSpeedX = initX;
-                    document.getElementById('sourceSpeedXValue').textContent = initX.toFixed(3);
-                    console.log('Set sourceSpeedX to initial:', initX);
-
-                    sourceSpeedYSlider.value = initY;
-                    sourceSpeedY = initY;
-                    document.getElementById('sourceSpeedYValue').textContent = initY.toFixed(3);
-                    console.log('Set sourceSpeedY to initial:', initY);
-                } else {
-                    // Ha nincs definiált kezdőérték (pl. 'water'), nullázzuk a csúszkákat és sebességeket
-                    sourceSpeedXSlider.value = 0;
-                    sourceSpeedX = 0;
-                    document.getElementById('sourceSpeedXValue').textContent = '0.000';
-                    
-                    sourceSpeedYSlider.value = 0;
-                    sourceSpeedY = 0;
-                    document.getElementById('sourceSpeedYValue').textContent = '0.000';
-                    console.log('No initial slider values for', movementType, 'setting to 0.');
-                }
+                // A csúszkák beállítása már megtörtént fentebb, a fizikai sebesség beállítása előtt
             });
             
             pauseBtn.addEventListener('click', () => {
@@ -2139,10 +2214,23 @@ if (emitter.timeline) {
             // Kibocsájtó pont mozgatása a kiválasztott mozgástípus szerint
             if (!isPaused) {
                 if (movementType === 'fire') {
-                    // A 'fire' mozgás már additív, de a jövőben ezt is érdemes lehet a physics_velocity-n keresztül kezelni.
-                    // Jelenleg a felhasználói kérésnek megfelelően csak a circular és spiral mozgást javítjuk.
-                    emitterPoint.position.x += sourceSpeedX * currentXMultiplier * emitterDirection * speedMultiplier;
-                    emitterPoint.position.y += sourceSpeedY * currentYMultiplier * speedMultiplier;
+                    // Tűzelem esetén a mozgást teljes mértékben a fizikai modellre bízzuk
+                    // A felhasználói sebességbeállítást átviszük a physics_velocity-be
+                    emitters.forEach(emitter => {
+                        // Csak akkor állítjuk be a kezdeti sebességet, ha még nincs jelentős mozgás
+                        // Ez lehetővé teszi, hogy a sebességcsökkentés megmaradjon
+                        const currentSpeed = emitter.physics_velocity.length();
+                        
+                        // Csak akkor állítjuk be újra, ha a jelenlegi sebesség nagyon kicsi (< 0.001)
+                        if (currentSpeed < PHYSICS_UNIT_SPEED * 0.5) {
+                            emitter.physics_velocity.set(
+                                sourceSpeedX * PHYSICS_UNIT_SPEED,
+                                sourceSpeedY * PHYSICS_UNIT_SPEED,
+                                0
+                            );
+                            console.log(`Fire mode physics velocity set to: ${emitter.physics_velocity.x} ${emitter.physics_velocity.y}`);
+                        }
+                    });
                 }
                 else if (movementType === 'circular') {
                     const angular_displacement = sourceSpeedX * currentXMultiplier * speedMultiplier;
@@ -2292,11 +2380,14 @@ function updateSpheres() {
         const sphere = spheres[i];
         const userData = sphere.userData;
         
+        // Sebességcsökkentés flag alaphelyzetbe állítása minden frame-ben
+        userData.hasReducedSpeed = false;
+        
         // A pozíció a rögzített középponton marad
         sphere.position.copy(userData.centerPosition);
         
-        // Folyamatos méret növelése - a sebesség szorzóval módosítva
-        userData.scale += userData.growthRate * speedMultiplier;
+        // Folyamatos méret növelése - konstans alapsebesség
+        userData.scale += userData.growthRate;
         sphere.scale.set(userData.scale, userData.scale, userData.scale);
         
         // Élettartam növelése
