@@ -1,5 +1,16 @@
 # 3D Hullámtér Szimulátor
 
+## Újdonságok az 1.37-es verzióban (az 1.36-os verzióhoz képest)
+
+**Irányító panel átalakítása oldalpanellé**:
+- Ütközés modell finomítása
+- Az Irányító panel mostantól a képernyő bal oldalán helyezkedik el teljes magasságban, oldalpanelként.
+- Ki-be görgethető a panel tetején található nyíl gombbal (◀/▶).
+- Az EXTRÁK panel tartalma bekerült az Irányító panel aljára, külön szekcióként.
+- Ha a panel tartalma hosszabb mint a képernyő magassága, görgetni lehet a panelt.
+- Egyedi scrollbar stílus a panelhez.
+- A panel állapota (nyitott/zárt) megőrződik az oldal frissítésekor.
+
 ## Újdonságok az 1.36-os verzióban (az 1.35-es verzióhoz képest)
 
 **Időszál vonal leképzése**:
