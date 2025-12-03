@@ -939,12 +939,9 @@ class WaveEmitter {
                     // Ez akkor történik, ha a sebességvektor a taszítás irányába mutat
                     const velocityInPushDirection = this.physics_velocity.dot(pushDirection);
                     
-                    // Ha a forráspont belülről kifelé mozog (pozitív dot product), 
-                    // akkor ne legyen hatás - áthaladás
-                    if (velocityInPushDirection > 0) {
-                        // Belülről kifelé mozgás - nincs kölcsönhatás
-                        continue;
-                    }
+                    // JAVÍTÁS: Ne hagyjuk ki az ütközés feldolgozását belülről kifelé mozgásnál
+                    // Minden ütközést fel kell dolgozni, hogy az áthatolás után is működjön az ütközésdetektálás
+                    const isMovingOutward = velocityInPushDirection > 0;
 
                     
                     // Eredő sebesség számítása
@@ -959,37 +956,54 @@ class WaveEmitter {
 
                     if (normalizedSpeed <= 1.0) {
                         // Alacsony sebesség (≤1): csak taszítás, nincs áthatolás
-                        // DE: ha a forrás már áthatolás közben van (sebessége a gömb felé mutat), 
-                        // akkor ne taszítsuk vissza, hanem hagyjuk tovább menni
-                        const velocityTowardsCenter = this.physics_velocity.dot(pushDirection.clone().negate());
-                        
-                        if (velocityTowardsCenter > 0) {
-                            // A forrás a gömb felé mozog → áthatolás folyamatban
-                            // Sebesség marad változatlan, ne taszítsunk vissza
-                            userData.hasPenetrated = true; // Jelöljük, hogy áthatolás történt
-                            console.log('LOW SPEED: Penetrating sphere - keep current velocity');
+                        if (isMovingOutward) {
+                            // Belülről kifelé mozgás: áthatolás folyamatban, sebesség marad
+                            userData.hasPenetrated = true;
+                            userData.hasLeftSource = true;
+                            userData.canPushSource = true;
+                            console.log('LOW SPEED: Moving outward - penetration continues');
                         } else {
-                            // A forrás nem a gömb felé mozog → normál taszítás
-                            this.physics_velocity = pushDirection.clone().multiplyScalar(PHYSICS_UNIT_SPEED);
-                            console.log('LOW SPEED: Set velocity to push direction', this.physics_velocity);
+                            // Kívülről befelé vagy érintőleges mozgás: taszítás
+                            // De csak akkor, ha még nincs áthatolás folyamatban
+                            if (!userData.hasPenetrated) {
+                                this.physics_velocity = pushDirection.clone().multiplyScalar(PHYSICS_UNIT_SPEED);
+                                console.log('LOW SPEED: Set velocity to push direction', this.physics_velocity);
+                            } else {
+                                // Áthatolás folyamatban - hagyjuk folytatni a mozgást
+                                console.log('LOW SPEED: Penetration in progress - continue movement');
+                            }
                         }
                     } else {
-                        // Nagy sebesség (>1): áthatolás csak egyszer történjen meg
-                        // Ellenőrizzük, hogy ez a gömb már okozott-e sebességcsökkenést
-                        if (!userData.hasReducedSpeed) {
-                            const oldVelocity = this.physics_velocity.clone();
-                            // A sebesség 1 fizikai egységgel csökken a mozgás irányában (nem a taszítás irányában!)
-                            const currentDirection = this.physics_velocity.clone().normalize();
-                            const reductionVector = currentDirection.multiplyScalar(-PHYSICS_UNIT_SPEED);
-                            this.physics_velocity.add(reductionVector);
-                            
-                            console.log('HIGH SPEED: Reduced velocity from', oldVelocity, 'to', this.physics_velocity);
-                            
-                            // Jelöljük meg, hogy ez a gömb már okozott sebességcsökkenést
-                            userData.hasReducedSpeed = true;
-                            userData.hasPenetrated = true; // Jelöljük, hogy áthatolás történt
+                        // Nagy sebesség (>1): áthatolás vagy sebességcsökkentés
+                        if (isMovingOutward) {
+                            // Belülről kifelé mozgás: áthatolás folyamatban, sebesség nem változik
+                            userData.hasPenetrated = true;
+                            userData.hasLeftSource = true;
+                            userData.canPushSource = true;
+                            console.log('HIGH SPEED: Moving outward - penetration continues, no speed reduction');
                         } else {
-                            console.log('HIGH SPEED: Already reduced, no change');
+                            // Kívülről befelé mozgás: szembehaladás, sebességcsökkentés
+                            if (!userData.hasReducedSpeed) {
+                                const oldVelocity = this.physics_velocity.clone();
+                                const oldSpeed = oldVelocity.length();
+                                
+                                // A sebesség 1 fizikai egységgel csökken a mozgás irányában
+                                const currentDirection = this.physics_velocity.clone().normalize();
+                                const reductionVector = currentDirection.multiplyScalar(-PHYSICS_UNIT_SPEED);
+                                this.physics_velocity.add(reductionVector);
+                                
+                                const newSpeed = this.physics_velocity.length();
+                                console.log(`HIGH SPEED: Collision - reduced speed from ${(oldSpeed/PHYSICS_UNIT_SPEED).toFixed(3)} to ${(newSpeed/PHYSICS_UNIT_SPEED).toFixed(3)}`);
+                                
+                                // Jelöljük meg, hogy ez a gömb már okozott sebességcsökkenést
+                                userData.hasReducedSpeed = true;
+                                userData.hasPenetrated = true;
+                                userData.hasLeftSource = true;
+                                userData.canPushSource = true;
+                            } else {
+                                // Már csökkentünk a sebességen ennél a gömbnél
+                                console.log('HIGH SPEED: Already reduced speed for this sphere');
+                            }
                         }
                     }
 
@@ -2222,8 +2236,22 @@ if (emitter.timeline) {
             if (!isPaused) {
                 if (movementType === 'fire') {
                     // Tűzelem esetén a mozgást teljes mértékben a fizikai modellre bízzuk
-                    // A physics_velocity már be van állítva a csúszkák változtatásakor vagy mozgástípus váltásakor
-                    // Itt nem csinálunk semmit - a fizikai modell frissítése megtörténik alább
+                    // A felhasználói sebességbeállítást átviszük a physics_velocity-be
+                    emitters.forEach(emitter => {
+                        // Csak akkor állítjuk be a kezdeti sebességet, ha még nincs jelentős mozgás
+                        // Ez lehetővé teszi, hogy a sebességcsökkentés megmaradjon
+                        const currentSpeed = emitter.physics_velocity.length();
+                        
+                        // Csak akkor állítjuk be újra, ha a jelenlegi sebesség nagyon kicsi (< 0.001)
+                        if (currentSpeed < PHYSICS_UNIT_SPEED * 0.5) {
+                            emitter.physics_velocity.set(
+                                sourceSpeedX * PHYSICS_UNIT_SPEED,
+                                sourceSpeedY * PHYSICS_UNIT_SPEED,
+                                0
+                            );
+                            console.log(`Fire mode physics velocity set to: ${emitter.physics_velocity.x} ${emitter.physics_velocity.y}`);
+                        }
+                    });
                 }
                 else if (movementType === 'circular') {
                     const angular_displacement = sourceSpeedX * currentXMultiplier * speedMultiplier;
