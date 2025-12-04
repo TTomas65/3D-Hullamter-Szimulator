@@ -586,7 +586,7 @@
             </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.38</span>
+                <span class="version-number">v1.39</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -851,7 +851,9 @@ class WaveEmitter {
     constructor(mesh) {
         this.mesh = mesh;           // source mesh (red point)
         this.spheres = [];
-        this.lastEmissionTime = performance.now();
+        // A lastEmissionTime a korrigált időt használja (performance.now() - totalPausedTime)
+        // A konstruktorban a totalPausedTime még 0, így ez rendben van
+        this.lastEmissionTime = performance.now() - (typeof totalPausedTime !== 'undefined' ? totalPausedTime : 0);
         this.physics_velocity = new THREE.Vector3(0, 0, 0); // Forráspont fizikai sebessége ütközés miatt
     }
 
@@ -942,7 +944,10 @@ class WaveEmitter {
         }
     }
 
-    resync(now) { this.lastEmissionTime = now; }
+    resync() { 
+        // Újraszinkronizálás a korrigált időhöz
+        this.lastEmissionTime = performance.now() - totalPausedTime; 
+    }
 
     // Ütközésdetektálás és fizika frissítése
     // A fizikai modell a forráspont és a táguló gömbfelület RELATÍV sebességét veszi figyelembe
@@ -1065,6 +1070,8 @@ class WaveEmitter {
         let cameraCenter = { x: 0, y: 0, z: 0 }; // Kamera középpontja
         let keysPressed = {};
         let isPaused = false;
+        let pauseStartTime = 0; // Mikor kezdődött a pause
+        let totalPausedTime = 0; // Összesen mennyi ideig volt pause állapotban
         let speedMultiplier = 1.0; // Sebesség szorzó - 1.0 = eredeti sebesség, 0.5 = fele sebesség, stb.
         
         // Időszál megjelenítés változói
@@ -1404,6 +1411,14 @@ if (movementType === 'dual') {
             pauseBtn.addEventListener('click', () => {
                 isPaused = !isPaused;
                 pauseBtn.textContent = isPaused ? 'Folytat' : 'Szünet';
+                
+                if (isPaused) {
+                    // Pause kezdete - tároljuk az időpontot
+                    pauseStartTime = performance.now();
+                } else {
+                    // Pause vége - hozzáadjuk a pause időtartamát az összeshez
+                    totalPausedTime += performance.now() - pauseStartTime;
+                }
             });
             
             resetBtn.addEventListener('click', () => {
@@ -1608,6 +1623,14 @@ if (movementType === 'dual') {
                     // Ugyanazt csináljuk, mint a szünet gomb kattintásakor
                     isPaused = !isPaused;
                     document.getElementById('pauseBtn').textContent = isPaused ? 'Folytat' : 'Szünet';
+                    
+                    if (isPaused) {
+                        // Pause kezdete - tároljuk az időpontot
+                        pauseStartTime = performance.now();
+                    } else {
+                        // Pause vége - hozzáadjuk a pause időtartamát az összeshez
+                        totalPausedTime += performance.now() - pauseStartTime;
+                    }
                 }
             }
             
@@ -2126,7 +2149,7 @@ if (emitter.timeline) {
     // Ürítsük a listákat
     emitter.timeline = { points: [], markers: [], lines: [] };
 }
-                emitter.resync(performance.now());
+                emitter.resync();
             });
             
             // Biztosítjuk, hogy a forráspont látható legyen
@@ -2142,6 +2165,8 @@ if (emitter.timeline) {
             
             // Időzítők visszaállítása
             lastEmissionTime = 0;
+            totalPausedTime = 0; // Pause időzítő visszaállítása
+            pauseStartTime = 0;
             
             // Körmozgás és spirális mozgás változók visszaállítása
             circleAngle = 0;
@@ -2329,7 +2354,8 @@ if (emitter.timeline) {
             
             // Ha nincs pause állapotban
             if (!isPaused) {
-                const currentTime = Date.now();
+                // Korrigált idő: a pause alatt eltelt időt levonjuk
+                const currentTime = performance.now() - totalPausedTime;
                 
                 // Emitterek frissítése (gömb kibocsájtás)
                 emitters.forEach(emitter => {

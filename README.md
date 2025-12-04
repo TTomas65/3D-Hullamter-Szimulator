@@ -1,5 +1,18 @@
 # 3D Hullámtér Szimulátor
 
+Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segítségével készítettem. A program lehetővé teszi egy forráspont gömbszerűen kibocsájtott hullámai terjedésének a megfigyelését a forráspont különböző típusú mozgásai közben a 3D térben.
+
+![Running image](kepek/Kepernyo_04.jpg)
+
+
+## Újdonságok az 1.39-es verzióban (az 1.38-as verzióhoz képest)
+
+**Pause szinkronizáció javítása**:
+- A pause (szünet) funkció most már helyesen kezeli a kiáradási ütemezést.
+- Pause után az új kiáradások szinkronban maradnak a régiekkel.
+- A pause alatt eltelt idő nem számít bele a kiáradási intervallumba.
+- A rétegtávolságok egyenletesek maradnak a pause előtt és után is.
+
 ## Újdonságok az 1.38-as verzióban (az 1.37-es verzióhoz képest)
 
 **Információs panel átalakítása oldalpanellé**:
@@ -65,11 +78,6 @@ Ez biztosítja, hogy a képernyőfelvétel funkció a legtöbb modern böngész�
 
 - **Új billentyű funkciók**:
   - P: Szünet/Folytatás
-
-
-Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segítségével készítettem. A program lehetővé teszi egy forráspont gömbszerűen kibocsájtott hullámai terjedésének a megfigyelését a forráspont különböző típusú mozgásai közben a 3D térben.
-
-![Running image](kepek/Kepernyo_02.jpg)
 
 
 ## Főbb jellemzők
