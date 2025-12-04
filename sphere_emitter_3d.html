@@ -910,9 +910,12 @@ class WaveEmitter {
 
     resync(now) { this.lastEmissionTime = now; }
 
-    // Ütközésdetektálás és fizika frissítése a kért módosítások alapján
+    // Ütközésdetektálás és fizika frissítése
+    // A fizikai modell a forráspont és a táguló gömbfelület RELATÍV sebességét veszi figyelembe
+    // A gömb tágulási sebessége mindig 1 fizikai egység (PHYSICS_UNIT_SPEED)
     updateCollisionPhysics() {
         const sourceRadius = 0.007; // A forráspont sugara
+        const sphereExpansionSpeed = PHYSICS_UNIT_SPEED; // A gömb tágulási sebessége = 1 fizikai egység
 
         // Ütközés ellenőrzése az összes gömbbel
         for (let sphere of spheres) {
@@ -928,86 +931,83 @@ class WaveEmitter {
                 const canInfluenceSource = !isOurEmitterSphere || userData.canPushSource;
 
                 if (sphereRadius >= 2 * sourceRadius && canInfluenceSource) {
-                    // Irányvektor a gömb középpontjától a forráspont felé (taszítás iránya)
-                    const pushDirection = new THREE.Vector3()
+                    // Irányvektor a gömb középpontjából a forráspont felé (radiális irány, kifelé)
+                    const radialOutward = new THREE.Vector3()
                         .subVectors(sourcePosition, sphereCenter)
                         .normalize();
                     
-                    if (pushDirection.lengthSq() === 0) continue;
+                    if (radialOutward.lengthSq() === 0) continue;
 
-                    // Ellenőrizzük, hogy a forráspont belülről kifelé halad-e
-                    // Ez akkor történik, ha a sebességvektor a taszítás irányába mutat
-                    const velocityInPushDirection = this.physics_velocity.dot(pushDirection);
+                    // A forráspont radiális sebessége (pozitív = kifelé mozog, negatív = befelé mozog)
+                    const sourceRadialSpeed = this.physics_velocity.dot(radialOutward);
                     
-                    // JAVÍTÁS: Ne hagyjuk ki az ütközés feldolgozását belülről kifelé mozgásnál
-                    // Minden ütközést fel kell dolgozni, hogy az áthatolás után is működjön az ütközésdetektálás
-                    const isMovingOutward = velocityInPushDirection > 0;
+                    // A gömbfelület radiális sebessége (mindig kifelé tágul, tehát pozitív)
+                    const surfaceRadialSpeed = sphereExpansionSpeed;
+                    
+                    // RELATÍV sebesség: forráspont sebessége a gömbfelülethez képest
+                    // Ha pozitív: a forráspont gyorsabban mozog kifelé mint a felület (előzi/elhagyja)
+                    // Ha negatív: a felület utoléri a forráspontot (befelé mozog vagy lassabban kifelé)
+                    const relativeRadialSpeed = sourceRadialSpeed - surfaceRadialSpeed;
+                    
+                    // Normalizált relatív sebesség (fizikai egységekben)
+                    const normalizedRelativeSpeed = relativeRadialSpeed / PHYSICS_UNIT_SPEED;
 
-                    
-                    // Eredő sebesség számítása
-                    const totalSpeed = this.physics_velocity.length();
-                    
-                    // Sebesség normalizálása fizikai egységre (PHYSICS_UNIT_SPEED = 1 egység)
-                    const normalizedSpeed = totalSpeed / PHYSICS_UNIT_SPEED;
-                    
+                    // DEBUG log
+                    console.log(`Collision: sourceRadial=${(sourceRadialSpeed/PHYSICS_UNIT_SPEED).toFixed(2)}, surfaceRadial=${(surfaceRadialSpeed/PHYSICS_UNIT_SPEED).toFixed(2)}, relative=${normalizedRelativeSpeed.toFixed(2)}`);
 
-                    console.log(`Collision DEBUG: totalSpeed=${totalSpeed.toFixed(4)}, normalizedSpeed=${normalizedSpeed.toFixed(4)}`);
+                    // ESET 1: A forráspont KIFELÉ mozog gyorsabban mint a felület tágul
+                    // (előzi vagy elhagyja a felületet belülről kifelé)
+                    // Ilyenkor a felület NEM HAT a forráspontra
+                    if (relativeRadialSpeed > 0) {
+                        // Belülről kifelé előzés/elhagyás - nincs hatás
+                        userData.hasPenetrated = true;
+                        userData.hasLeftSource = true;
+                        userData.canPushSource = true;
+                        console.log('OUTWARD: Source moving faster than surface - no effect');
+                        continue; // Nincs további feldolgozás erre a gömbra
+                    }
                     
-
-                    if (normalizedSpeed <= 1.0) {
-                        // Alacsony sebesség (≤1): csak taszítás, nincs áthatolás
-                        if (isMovingOutward) {
-                            // Belülről kifelé mozgás: áthatolás folyamatban, sebesség marad
-                            userData.hasPenetrated = true;
-                            userData.hasLeftSource = true;
-                            userData.canPushSource = true;
-                            console.log('LOW SPEED: Moving outward - penetration continues');
+                    // ESET 2: A felület UTOLÉRI a forráspontot (relatív sebesség negatív)
+                    // A forráspont vagy befelé mozog, vagy lassabban kifelé mint a felület
+                    
+                    // Az "ütközési" sebesség nagysága (abszolút érték)
+                    const collisionSpeed = Math.abs(normalizedRelativeSpeed);
+                    
+                    if (collisionSpeed <= 1.0) {
+                        // ALACSONY relatív sebesség (≤1): TASZÍTÁS
+                        // A felület tolja maga előtt a forráspontot
+                        // De csak akkor, ha még nincs áthatolás folyamatban ezen a gömbnél
+                        if (!userData.hasPenetrated) {
+                            // A forráspont sebességét a taszítás irányába állítjuk (radiálisan kifelé)
+                            // A sebesség nagysága = gömbfelület tágulási sebessége (1 fizikai egység)
+                            this.physics_velocity = radialOutward.clone().multiplyScalar(sphereExpansionSpeed);
+                            console.log('LOW RELATIVE SPEED: Surface pushes source outward');
                         } else {
-                            // Kívülről befelé vagy érintőleges mozgás: taszítás
-                            // De csak akkor, ha még nincs áthatolás folyamatban
-                            if (!userData.hasPenetrated) {
-                                this.physics_velocity = pushDirection.clone().multiplyScalar(PHYSICS_UNIT_SPEED);
-                                console.log('LOW SPEED: Set velocity to push direction', this.physics_velocity);
-                            } else {
-                                // Áthatolás folyamatban - hagyjuk folytatni a mozgást
-                                console.log('LOW SPEED: Penetration in progress - continue movement');
-                            }
+                            // Áthatolás már folyamatban volt - hagyjuk folytatni
+                            console.log('LOW RELATIVE SPEED: Penetration in progress - continue');
                         }
                     } else {
-                        // Nagy sebesség (>1): áthatolás vagy sebességcsökkentés
-                        if (isMovingOutward) {
-                            // Belülről kifelé mozgás: áthatolás folyamatban, sebesség nem változik
+                        // NAGY relatív sebesség (>1): ÁTHATOLÁS sebességcsökkenéssel
+                        // A forráspont áthatol a felületen, de a sebessége 1-gyel csökken
+                        if (!userData.hasReducedSpeed) {
+                            const oldSpeed = this.physics_velocity.length();
+                            
+                            // A sebesség 1 fizikai egységgel csökken a MOZGÁS irányában
+                            const moveDirection = this.physics_velocity.clone().normalize();
+                            this.physics_velocity.sub(moveDirection.multiplyScalar(PHYSICS_UNIT_SPEED));
+                            
+                            const newSpeed = this.physics_velocity.length();
+                            console.log(`HIGH RELATIVE SPEED: Penetration - speed reduced from ${(oldSpeed/PHYSICS_UNIT_SPEED).toFixed(2)} to ${(newSpeed/PHYSICS_UNIT_SPEED).toFixed(2)}`);
+                            
+                            // Jelöljük, hogy ez a gömb már okozott sebességcsökkenést
+                            userData.hasReducedSpeed = true;
                             userData.hasPenetrated = true;
                             userData.hasLeftSource = true;
                             userData.canPushSource = true;
-                            console.log('HIGH SPEED: Moving outward - penetration continues, no speed reduction');
                         } else {
-                            // Kívülről befelé mozgás: szembehaladás, sebességcsökkentés
-                            if (!userData.hasReducedSpeed) {
-                                const oldVelocity = this.physics_velocity.clone();
-                                const oldSpeed = oldVelocity.length();
-                                
-                                // A sebesség 1 fizikai egységgel csökken a mozgás irányában
-                                const currentDirection = this.physics_velocity.clone().normalize();
-                                const reductionVector = currentDirection.multiplyScalar(-PHYSICS_UNIT_SPEED);
-                                this.physics_velocity.add(reductionVector);
-                                
-                                const newSpeed = this.physics_velocity.length();
-                                console.log(`HIGH SPEED: Collision - reduced speed from ${(oldSpeed/PHYSICS_UNIT_SPEED).toFixed(3)} to ${(newSpeed/PHYSICS_UNIT_SPEED).toFixed(3)}`);
-                                
-                                // Jelöljük meg, hogy ez a gömb már okozott sebességcsökkenést
-                                userData.hasReducedSpeed = true;
-                                userData.hasPenetrated = true;
-                                userData.hasLeftSource = true;
-                                userData.canPushSource = true;
-                            } else {
-                                // Már csökkentünk a sebességen ennél a gömbnél
-                                console.log('HIGH SPEED: Already reduced speed for this sphere');
-                            }
+                            console.log('HIGH RELATIVE SPEED: Already reduced for this sphere');
                         }
                     }
-
-                    
                 }
             }
         }
@@ -2389,9 +2389,6 @@ function updateSpheres() {
         const sphere = spheres[i];
         const userData = sphere.userData;
         
-        // Sebességcsökkentés flag alaphelyzetbe állítása minden frame-ben
-        userData.hasReducedSpeed = false;
-        
         // A pozíció a rögzített középponton marad
         sphere.position.copy(userData.centerPosition);
         
@@ -2412,9 +2409,14 @@ function updateSpheres() {
             // Távolság a forráspont és a gömb között
             const distance = sphereCenter.distanceTo(sourcePosition);
             
-            // Ha a gömb nem érintkezik a forrásponttal, akkor jelöljük, hogy elhagyta azt
+            // Ha a gömb nem érintkezik a forrásponttal (forráspont kívül van)
             if (distance > sphereRadius + sourceRadius) {
                 userData.hasLeftSource = true;
+                // FONTOS: Ha a forráspont kívülre került, reseteljük MINDKÉT flag-et
+                // Ez lehetővé teszi, hogy ha újra belép a gömbbe, újra működjön az ütközésdetektálás
+                // és a sebességcsökkentés is újra megtörténjen
+                userData.hasPenetrated = false;
+                userData.hasReducedSpeed = false;
             }
             
             // Ha már elhagyta a forráspontot, akkor engedélyezzük, hogy taszítsa azt
