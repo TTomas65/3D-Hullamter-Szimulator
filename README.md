@@ -1,5 +1,11 @@
 # 3D Hullámtér Szimulátor
 
+## Újdonságok az 1.38-as verzióban (az 1.37-es verzióhoz képest)
+
+**Információs panel átalakítása oldalpanellé**:
+- Az Információs panel (irányítási útmutató) Ki-be görgethető átalakítása.
+- Ütközés modell finomítása
+
 ## Újdonságok az 1.37-es verzióban (az 1.36-os verzióhoz képest)
 
 **Irányító panel átalakítása oldalpanellé**:

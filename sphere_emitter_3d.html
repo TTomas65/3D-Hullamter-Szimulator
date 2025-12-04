@@ -498,40 +498,69 @@
         /* ===== Scrollable instructions panel (v9) ===== */
         #instructions {
             position: fixed;
-            bottom: 24px;
-            right: 24px;
-            width: 280px;
-            max-height: 260px;
+            bottom: 0;
+            right: 0;
+            width: 300px;
+            height: 33.33vh; /* A képernyő alsó 1/3-a */
             overflow-y: auto;
             backdrop-filter: blur(12px);
-            background: rgba(15,23,42,0.85);
-            border: 1px solid rgba(148,163,184,0.25);
-            border-radius: 12px;
+            background: rgba(15,23,42,0.95);
+            border-left: 1px solid rgba(148,163,184,0.25);
+            border-top: 1px solid rgba(148,163,184,0.25);
+            border-radius: 12px 0 0 0;
             padding: 20px 24px 24px 24px;
             color: #f8fafc;
             font-size: 14px;
             line-height: 1.4;
             z-index: 120;
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1);
         }
-        #instructionsCloseBtn {
-            position: absolute;
-            top: 10px;
-            right: 10px;
-            width: 24px;
-            height: 24px;
+        #instructions.collapsed {
+            right: -350px; /* Teljesen eltűnik a képernyőről */
+        }
+        
+        /* Right instructions panel toggle button */
+        #instructionsPanelToggle {
+            position: fixed;
+            top: calc(100vh - 33.33vh - 40px + 12px); /* A panel tetejénél, kicsit lejjebb */
+            right: 348px; /* 300px panel + 45px kijjebb */
+            z-index: 121;
+            width: 28px;
+            height: 40px;
+            background: linear-gradient(135deg, rgba(15, 23, 42, 1) 0%, rgba(30, 41, 59, 1) 100%);
+            border: 1px solid rgba(148, 163, 184, 0.2);
+            border-right: none;
+            border-radius: 8px 0 0 8px;
+            color: #f8fafc;
+            cursor: pointer;
             display: flex;
             align-items: center;
             justify-content: center;
-            font-size: 18px;
-            font-weight: bold;
-            background: rgba(255,255,255,0.08);
-            border: 1px solid rgba(148,163,184,0.3);
-            border-radius: 6px;
-            color: #f8fafc;
-            cursor: pointer;
+            font-size: 16px;
+            transition: right 0.4s cubic-bezier(0.4, 0, 0.2, 1), background 0.3s ease;
+            box-shadow: -4px 0 15px -5px rgba(0, 0, 0, 0.3);
+            padding: 0;
+            margin: 0;
         }
-        #instructionsCloseBtn:hover {
-            background: rgba(255,255,255,0.2);
+        
+        #instructionsPanelToggle:hover {
+            background: linear-gradient(135deg, rgba(30, 41, 59, 1) 0%, rgba(51, 65, 85, 1) 100%);
+        }
+        
+        #instructionsPanelToggle.collapsed {
+            right: 0px; /* 45px + 3px igazítás */
+        }
+        
+        #instructionsPanelToggle .arrow {
+            transition: transform 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        
+        #instructionsPanelToggle.collapsed .arrow {
+            transform: rotate(180deg);
+        }
+        
+        #instructionsCloseBtn {
+            display: none; /* Hide the old close button */
         }
         .instructions-section {
             margin-bottom: 16px;
@@ -557,7 +586,7 @@
             </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.37</span>
+                <span class="version-number">v1.38</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -778,6 +807,11 @@
                 <div class="instruction-item"><strong>Időszál megjelenítése:</strong> A forráspont által kibocsátott gömbök középpontjainak megjelölése és összekötése sárga színnel.</div>
             </div>
         </div>
+        
+        <!-- Instructions panel toggle button -->
+        <button id="instructionsPanelToggle" title="Információs panel ki/be görgetése">
+            <span class="arrow">▶</span>
+        </button>
         
     </div>
             
@@ -1202,7 +1236,6 @@ class WaveEmitter {
             const pauseBtn = document.getElementById('pauseBtn');
             const resetBtn = document.getElementById('resetBtn');
             const cameraResetBtn = document.getElementById('cameraResetBtn');
-            const instructionsCloseBtn = document.getElementById('instructionsCloseBtn');
             
             intensitySlider.addEventListener('input', (e) => {
                 emissionIntensity = parseFloat(e.target.value);
@@ -1501,10 +1534,6 @@ if (movementType === 'dual') {
                 
                 // Frissítjük az időszál elemek láthatóságát a jelölőnégyzet állapota alapján
                 updateTimelineVisibility();
-            });
-            
-            instructionsCloseBtn.addEventListener('click', () => {
-                document.getElementById('instructions').style.display = 'none';
             });
         }
         
@@ -2362,6 +2391,37 @@ if (emitter.timeline) {
         if (sessionStorage.getItem('controlsPanelCollapsed') === 'true') {
             controlsPanel.classList.add('collapsed');
             sidePanelToggle.classList.add('collapsed');
+        }
+        
+        // Információs panel (instructions) ki-be görgetés gomb eseménykezelője
+        const instructionsPanelToggle = document.getElementById('instructionsPanelToggle');
+        const instructionsPanel = document.getElementById('instructions');
+        
+        // Toggle funkció az információs panelhez
+        function toggleInstructionsPanel() {
+            const isCollapsed = instructionsPanel.classList.toggle('collapsed');
+            instructionsPanelToggle.classList.toggle('collapsed', isCollapsed);
+            
+            // Panel állapotának mentése
+            sessionStorage.setItem('instructionsPanelCollapsed', isCollapsed ? 'true' : 'false');
+        }
+        
+        instructionsPanelToggle.addEventListener('click', toggleInstructionsPanel);
+        
+        // Információs panel: induláskor nyitva, majd 3 másodperc után automatikusan becsukódik
+        // Ez csak az első megnyitáskor történik meg (sessionStorage-ban tároljuk, hogy már volt-e automatikus bezárás)
+        if (!sessionStorage.getItem('instructionsAutoCloseDone')) {
+            // Első megnyitás - panel nyitva marad, majd 3 mp után becsukódik
+            setTimeout(() => {
+                instructionsPanel.classList.add('collapsed');
+                instructionsPanelToggle.classList.add('collapsed');
+                sessionStorage.setItem('instructionsPanelCollapsed', 'true');
+                sessionStorage.setItem('instructionsAutoCloseDone', 'true');
+            }, 1000);
+        } else if (sessionStorage.getItem('instructionsPanelCollapsed') === 'true') {
+            // Későbbi megnyitások - az előző állapot visszaállítása
+            instructionsPanel.classList.add('collapsed');
+            instructionsPanelToggle.classList.add('collapsed');
         }
         
         // Ellenőrizzük, hogy újratöltés történt-e, és ha igen, állítsuk a mozgástípust Vízelemre
