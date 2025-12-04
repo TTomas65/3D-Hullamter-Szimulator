@@ -575,9 +575,93 @@
             margin-bottom: 4px;
         }
 
+        /* 3x3 Grid Selection Panel */
+        #grid3x3Panel {
+            position: fixed;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            z-index: 200;
+            background: linear-gradient(180deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.95) 100%);
+            backdrop-filter: blur(12px);
+            border: 1px solid rgba(148, 163, 184, 0.3);
+            border-radius: 16px;
+            padding: 24px 32px;
+            color: #f8fafc;
+            font-size: 14px;
+            box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+            display: none;
+            min-width: 520px;
+        }
+        
+        #grid3x3Panel h3 {
+            margin: 0 0 16px 0;
+            font-size: 18px;
+            font-weight: 600;
+            text-align: center;
+            color: #60a5fa;
+        }
+        
+        #grid3x3Panel .instructions-text {
+            margin-bottom: 20px;
+            line-height: 1.6;
+            color: #cbd5e1;
+        }
+        
+        #grid3x3Panel .instructions-text strong {
+            color: #fbbf24;
+        }
+        
+        #grid3x3StartBtn {
+            display: block;
+            width: 100%;
+            padding: 12px 24px;
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            border: none;
+            border-radius: 8px;
+            color: white;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        #grid3x3StartBtn:hover {
+            background: linear-gradient(135deg, #16a34a 0%, #15803d 100%);
+            transform: scale(1.02);
+        }
+        
+        #grid3x3StartBtn:disabled {
+            background: linear-gradient(135deg, #6b7280 0%, #4b5563 100%);
+            cursor: not-allowed;
+            transform: none;
+        }
+        
+        .selected-count {
+            text-align: center;
+            margin-bottom: 16px;
+            font-size: 16px;
+            color: #fbbf24;
+        }
+
 </style>
 </head>
 <body>
+    <!-- 3x3 Grid Selection Panel -->
+    <div id="grid3x3Panel">
+        <h3>🎯 3x3-as Térrács Kiválasztás</h3>
+        <div class="instructions-text">
+            <strong>Utasítások:</strong><br>
+            1. A 3D térben megjelent egy 3×3×3-as kockaháló 27 ponttal.<br>
+            2. <strong>Kattints a sötétszürke gömbökre</strong> a kiválasztáshoz - sárgára váltanak.<br>
+            3. Újabb kattintással visszavonhatod a kiválasztást.<br>
+            4. Válaszd ki azokat a pontokat, ahová forráspontokat szeretnél helyezni.<br>
+            5. Ha kész, nyomd meg az <strong>Indítás</strong> gombot!
+        </div>
+        <div class="selected-count">Kiválasztott pontok: <span id="selectedPointCount">0</span> / 27</div>
+        <button id="grid3x3StartBtn" disabled>Indítás (válassz legalább 1 pontot)</button>
+    </div>
+
     <div id="container">
         <div id="version">
             <div id="velocity-container" class="version-container">
@@ -586,7 +670,7 @@
             </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.39</span>
+                <span class="version-number">v1.40</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -690,6 +774,7 @@
                 <label for="movementType">Mozgástípusok</label>
                 <select id="movementType">
                     <option value="water">Vízelem</option>
+                    <option value="grid3x3">3x3-as térrács elrendezés</option>
                     <option value="fire">Tűzelem</option>
                     <option value="circular">Körmozgás</option>
                     <option value="spiral">Spirális mozgás</option>
@@ -1059,6 +1144,14 @@ class WaveEmitter {
         let spheres = [];
         let emitters = []; // Emitter objektumok tömbje
         let secondaryEmitter = null; // Második emitter a dual módhoz
+        
+        // 3x3-as térrács változók
+        let grid3x3Points = []; // A 27 pont mesh objektumai
+        let grid3x3Selected = []; // Kiválasztott pontok koordinátái
+        let grid3x3Mode = false; // Kiválasztási mód aktív-e
+        let grid3x3Started = false; // A szimuláció elindult-e
+        let grid3x3Emitters = []; // A térrács forráspontjai (emitterek)
+        
         let mouse = { x: 0, y: 0 };
         let isLeftMouseDown = false;
         let isRightMouseDown = false;
@@ -1146,7 +1239,184 @@ class WaveEmitter {
             spiral:   { x: 2.84, y: 1.8 }
         };
         
-        // Inicializálás
+        // ========== 3x3-as térrács funkciók ==========
+        
+        // 3x3-as térrács létrehozása
+        function createGrid3x3() {
+            const spacing = 2.0; // Pontok közötti távolság (nagyobb érték = távolabb vannak)
+            
+            // Töröljük a korábbi pontokat (de ne állítsuk vissza a grid3x3Mode-ot)
+            grid3x3Points.forEach(point => {
+                scene.remove(point);
+                point.geometry.dispose();
+                point.material.dispose();
+            });
+            grid3x3Points = [];
+            grid3x3Selected = [];
+            grid3x3Started = false;
+            
+            // Kiválasztási fázisban az eredeti emitter ne árasszon ki
+            // Elmozdítjuk az eredeti forráspontot messzire, hogy ne zavarja a kiválasztást
+            emitterPoint.position.set(1000, 1000, 1000);
+            emitterPoint.visible = false;
+            
+            // 27 pont létrehozása (3x3x3)
+            for (let x = 0; x < 3; x++) {
+                for (let y = 0; y < 3; y++) {
+                    for (let z = 0; z < 3; z++) {
+                        const geometry = new THREE.SphereGeometry(0.08, 16, 16);
+                        const material = new THREE.MeshPhongMaterial({
+                            color: 0x444444, // Sötétszürke
+                            shininess: 60,
+                            specular: 0x222222
+                        });
+                        const point = new THREE.Mesh(geometry, material);
+                        
+                        // Pozíció beállítása (középre igazítva)
+                        point.position.set(
+                            (x - 1) * spacing,
+                            (y - 1) * spacing,
+                            (z - 1) * spacing
+                        );
+                        
+                        // Tároljuk a pont adatait
+                        point.userData = {
+                            gridIndex: grid3x3Points.length,
+                            isSelected: false,
+                            originalColor: 0x444444
+                        };
+                        
+                        scene.add(point);
+                        grid3x3Points.push(point);
+                    }
+                }
+            }
+            
+            // Panel megjelenítése
+            document.getElementById('grid3x3Panel').style.display = 'block';
+            updateSelectedCount();
+        }
+        
+        // 3x3-as térrács törlése
+        function clearGrid3x3() {
+            grid3x3Points.forEach(point => {
+                scene.remove(point);
+                point.geometry.dispose();
+                point.material.dispose();
+            });
+            grid3x3Points = [];
+            grid3x3Selected = [];
+            grid3x3Mode = false;
+            grid3x3Started = false;
+            
+            // Panel elrejtése
+            document.getElementById('grid3x3Panel').style.display = 'none';
+            
+            // Térrács emitterek törlése
+            grid3x3Emitters.forEach(emitter => {
+                if (emitter.mesh) {
+                    scene.remove(emitter.mesh);
+                    emitter.mesh.geometry.dispose();
+                    emitter.mesh.material.dispose();
+                }
+                // Eltávolítjuk az emitters tömbből is
+                const index = emitters.indexOf(emitter);
+                if (index > -1) {
+                    emitters.splice(index, 1);
+                }
+            });
+            grid3x3Emitters = [];
+        }
+        
+        // Kiválasztott pontok számának frissítése
+        function updateSelectedCount() {
+            const count = grid3x3Selected.length;
+            document.getElementById('selectedPointCount').textContent = count;
+            
+            const startBtn = document.getElementById('grid3x3StartBtn');
+            if (count > 0) {
+                startBtn.disabled = false;
+                startBtn.textContent = `Indítás (${count} forráspont)`;
+            } else {
+                startBtn.disabled = true;
+                startBtn.textContent = 'Indítás (válassz legalább 1 pontot)';
+            }
+        }
+        
+        // Pont kiválasztása/kiválasztás visszavonása
+        function toggleGridPoint(point) {
+            if (!grid3x3Mode || grid3x3Started) return;
+            
+            point.userData.isSelected = !point.userData.isSelected;
+            
+            if (point.userData.isSelected) {
+                // Sárgára váltás
+                point.material.color.setHex(0xffd700);
+                point.material.emissive = new THREE.Color(0x332200);
+                grid3x3Selected.push(point.position.clone());
+            } else {
+                // Vissza sötétszürkére
+                point.material.color.setHex(0x444444);
+                point.material.emissive = new THREE.Color(0x000000);
+                // Eltávolítás a kiválasztottak közül
+                const idx = grid3x3Selected.findIndex(pos => 
+                    pos.x === point.position.x && 
+                    pos.y === point.position.y && 
+                    pos.z === point.position.z
+                );
+                if (idx > -1) {
+                    grid3x3Selected.splice(idx, 1);
+                }
+            }
+            
+            updateSelectedCount();
+        }
+        
+        // 3x3-as térrács szimuláció indítása
+        function startGrid3x3Simulation() {
+            if (grid3x3Selected.length === 0) return;
+            
+            grid3x3Started = true;
+            
+            // Panel elrejtése
+            document.getElementById('grid3x3Panel').style.display = 'none';
+            
+            // Töröljük a kiválasztó pontokat
+            grid3x3Points.forEach(point => {
+                scene.remove(point);
+                point.geometry.dispose();
+                point.material.dispose();
+            });
+            grid3x3Points = [];
+            
+            // Elrejtjük az eredeti forráspontot
+            emitterPoint.visible = false;
+            
+            // Létrehozzuk a forráspontokat a kiválasztott pozíciókban
+            grid3x3Selected.forEach((pos, index) => {
+                const geometry = new THREE.SphereGeometry(0.007, 16, 16);
+                const material = new THREE.MeshPhongMaterial({
+                    color: 0xff0000, // Piros forráspont
+                    shininess: 80,
+                    specular: 0x444444
+                });
+                const sourceMesh = new THREE.Mesh(geometry, material);
+                sourceMesh.position.copy(pos);
+                scene.add(sourceMesh);
+                
+                // Emitter létrehozása
+                const newEmitter = new WaveEmitter(sourceMesh);
+                emitters.push(newEmitter);
+                grid3x3Emitters.push(newEmitter);
+            });
+            
+            console.log(`Grid 3x3 simulation started with ${grid3x3Selected.length} source points`);
+        }
+        
+        // Raycaster a 3x3-as térrács pontok kattintásához
+        const grid3x3Raycaster = new THREE.Raycaster();
+        
+        // ========== Inicializálás ==========
         function init() {
             // Jelenet létrehozása
             scene = new THREE.Scene();
@@ -1348,7 +1618,22 @@ class WaveEmitter {
                     emitters[0].physics_velocity.set(0, 0, 0);
                 }
                 console.log('Movement type changed to:', movementType, 'New Multipliers X:', currentXMultiplier, 'Y:', currentYMultiplier);
-                emitterPoint.visible = (movementType !== 'water');
+                emitterPoint.visible = (movementType !== 'water' && movementType !== 'grid3x3');
+
+// 3x3-as térrács mód kezelése
+if (movementType === 'grid3x3') {
+    // Beállítjuk a módot ELŐBB
+    grid3x3Mode = true;
+    // Létrehozzuk az új térrácsot (ez törli a korábbi pontokat is)
+    createGrid3x3();
+    // Elrejtjük az eredeti forráspontot
+    emitterPoint.visible = false;
+} else {
+    // Más mód esetén töröljük a térrácsot
+    if (grid3x3Mode || grid3x3Points.length > 0 || grid3x3Emitters.length > 0) {
+        clearGrid3x3();
+    }
+}
 
 // Dual mode: két forráspont létrehozása/eltávolítása
 if (movementType === 'dual') {
@@ -1427,6 +1712,11 @@ if (movementType === 'dual') {
             
             cameraResetBtn.addEventListener('click', () => {
                 resetCamera();
+            });
+            
+            // 3x3-as térrács Indítás gomb eseménykezelője
+            document.getElementById('grid3x3StartBtn').addEventListener('click', () => {
+                startGrid3x3Simulation();
             });
             
             // Új kamera nézet gombok eseménykezelői
@@ -1554,6 +1844,26 @@ if (movementType === 'dual') {
         
         function onMouseDown(event) {
             if (event.button === 0) { // Bal egérgomb
+                // 3x3-as térrács mód esetén
+                if (grid3x3Mode) {
+                    // Ha még a kiválasztási fázisban vagyunk, ellenőrizzük a pontokat
+                    if (!grid3x3Started && grid3x3Points.length > 0) {
+                        const mouseVector = new THREE.Vector2(
+                            (event.clientX / window.innerWidth) * 2 - 1,
+                            -(event.clientY / window.innerHeight) * 2 + 1
+                        );
+                        
+                        grid3x3Raycaster.setFromCamera(mouseVector, camera);
+                        const intersects = grid3x3Raycaster.intersectObjects(grid3x3Points);
+                        
+                        if (intersects.length > 0) {
+                            toggleGridPoint(intersects[0].object);
+                        }
+                    }
+                    // Grid3x3 módban soha ne mozgassuk a forráspontot bal egérgombbal
+                    return;
+                }
+                
                 isLeftMouseDown = true;
                 updateMousePosition(event);
             } else if (event.button === 2) { // Jobb egérgomb
@@ -2171,6 +2481,11 @@ if (emitter.timeline) {
             // Körmozgás és spirális mozgás változók visszaállítása
             circleAngle = 0;
             spiralHeight = 0;
+            
+            // 3x3-as térrács visszaállítása
+            if (grid3x3Mode || grid3x3Points.length > 0 || grid3x3Emitters.length > 0) {
+                clearGrid3x3();
+            }
         }
         
         function animate(time) {
@@ -2352,8 +2667,8 @@ if (emitter.timeline) {
                 }
             }
             
-            // Ha nincs pause állapotban
-            if (!isPaused) {
+            // Ha nincs pause állapotban és nem vagyunk grid3x3 kiválasztási fázisban
+            if (!isPaused && !(grid3x3Mode && !grid3x3Started)) {
                 // Korrigált idő: a pause alatt eltelt időt levonjuk
                 const currentTime = performance.now() - totalPausedTime;
                 

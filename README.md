@@ -5,6 +5,17 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ![Running image](kepek/Kepernyo_04.jpg)
 
 
+## Újdonságok az 1.40-es verzióban (az 1.39-es verzióhoz képest)
+
+**3x3-as térrács elrendezés mód**:
+- Új mozgástípus: "3x3-as térrács elrendezés" a Vízelem után.
+- 27 pontos (3×3×3) kockaháló megjelenítése a 3D térben.
+- Interaktív pont kiválasztás: kattintással sötétszürkéről sárgára váltanak a pontok.
+- Felugró információs panel a kiválasztási folyamat leírásával.
+- Indítás gomb a szimuláció elindításához a kiválasztott pontokkal.
+- A kiválasztott pontokban piros forráspontok jelennek meg, amelyek egyszerre kezdenek kiáradni.
+- A szimuláció indítása után a forráspontok reagálnak az ütközésmodellre.
+
 ## Újdonságok az 1.39-es verzióban (az 1.38-as verzióhoz képest)
 
 **Pause szinkronizáció javítása**:
