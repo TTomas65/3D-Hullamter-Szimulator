@@ -5,6 +5,15 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ![Running image](kepek/Kepernyo_04.jpg)
 
 
+## Újdonságok az 1.41-es verzióban (az 1.40-es verzióhoz képest)
+
+**Vízelem és Tűzelem forráspontok a 3x3-as térrácsban**:
+- Háromállapotú kiválasztás: szürke → sárga → piros → szürke
+- **Sárga (vízelem)**: álló forráspont, helyben marad és kiárad
+- **Piros (tűzelem)**: mozgó forráspont, 2-es sebességgel halad a térrács középpontja felé
+- Részletes kijelzés a kiválasztott pontok számáról (vízelem/tűzelem bontásban)
+- A vízelem forráspontok kék színnel, a tűzelem forráspontok piros színnel jelennek meg
+
 ## Újdonságok az 1.40-es verzióban (az 1.39-es verzióhoz képest)
 
 **3x3-as térrács elrendezés mód**:
