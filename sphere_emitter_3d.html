@@ -677,6 +677,111 @@
             color: #fbbf24;
         }
 
+        /* === Fire point parameter modal (3x3 grid) === */
+        .fire-modal {
+            position: fixed;
+            inset: 0;
+            z-index: 10000;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .fire-modal-backdrop {
+            position: absolute;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.55);
+            backdrop-filter: blur(2px);
+        }
+        .fire-modal-content {
+            position: relative;
+            background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+            color: #f3f4f6;
+            border: 1px solid rgba(239, 68, 68, 0.4);
+            border-radius: 12px;
+            padding: 20px 24px;
+            min-width: 360px;
+            max-width: 460px;
+            box-shadow: 0 20px 50px rgba(0, 0, 0, 0.5);
+            font-family: inherit;
+        }
+        .fire-modal-content h3 {
+            margin: 0 0 14px 0;
+            color: #fca5a5;
+            font-size: 18px;
+        }
+        .fire-modal-row {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 10px;
+            flex-wrap: wrap;
+        }
+        .fire-modal-dir-header {
+            margin-top: 6px;
+            margin-bottom: 4px;
+        }
+        .fire-modal-label {
+            font-weight: 600;
+            min-width: 110px;
+            color: #e5e7eb;
+        }
+        .fire-modal-value {
+            font-family: ui-monospace, monospace;
+            color: #93c5fd;
+        }
+        .fire-modal-radio {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .fire-modal-manual label {
+            font-weight: 600;
+            margin-left: 4px;
+        }
+        .fire-modal input[type="number"] {
+            background: #0f172a;
+            color: #f3f4f6;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 4px 8px;
+            width: 80px;
+            font-size: 13px;
+        }
+        .fire-modal input[type="number"]:focus {
+            outline: none;
+            border-color: #ef4444;
+        }
+        .fire-modal-buttons {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 18px;
+        }
+        .fire-modal-btn {
+            padding: 8px 16px;
+            border: none;
+            border-radius: 6px;
+            cursor: pointer;
+            font-weight: 600;
+            font-size: 13px;
+            transition: filter 0.15s ease;
+        }
+        .fire-modal-btn:hover { filter: brightness(1.15); }
+        .fire-modal-ok {
+            background: linear-gradient(135deg, #22c55e 0%, #16a34a 100%);
+            color: white;
+        }
+        .fire-modal-cancel {
+            background: #4b5563;
+            color: white;
+        }
+        .fire-modal-remove {
+            background: linear-gradient(135deg, #ef4444 0%, #b91c1c 100%);
+            color: white;
+        }
+
 </style>
 </head>
 <body>
@@ -687,12 +792,48 @@
             <strong>Utasítások:</strong><br>
             1. A 3D térben megjelent egy 3×3×3-as kockaháló 27 ponttal.<br>
             2. <strong>1× kattintás</strong> → <span style="color:#ffd700">●</span> Sárga (vízelem) = álló forráspont<br>
-            3. <strong>2× kattintás</strong> → <span style="color:#ff0000">●</span> Piros (tűzelem) = mozgó forráspont a középpont felé<br>
+            3. <strong>2× kattintás</strong> → <span style="color:#ff0000">●</span> Piros (tűzelem) = mozgó forráspont (felugró ablak a sebesség és irány beállításához)<br>
             4. <strong>3× kattintás</strong> → <span style="color:#666">●</span> Szürke = visszavonás<br>
-            5. Ha kész, nyomd meg az <strong>Indítás</strong> gombot!
+            5. <strong>Jobb klikk piros ponton</strong> → tűzelem paramétereinek szerkesztése<br>
+            6. Ha kész, nyomd meg az <strong>Indítás</strong> gombot!
         </div>
         <div class="selected-count">Kiválasztott pontok: <span id="selectedPointCount">0</span> / 27</div>
         <button id="grid3x3StartBtn" disabled>Indítás (válassz legalább 1 pontot)</button>
+    </div>
+
+    <!-- Fire point parameter modal (3x3 grid) -->
+    <div id="firePointModal" class="fire-modal" style="display:none;">
+        <div class="fire-modal-backdrop"></div>
+        <div class="fire-modal-content">
+            <h3>🔥 Tűzelem forráspont beállítása</h3>
+            <div class="fire-modal-row">
+                <span class="fire-modal-label">Pozíció:</span>
+                <span id="fireModalPos" class="fire-modal-value">—</span>
+            </div>
+            <div class="fire-modal-row">
+                <label for="fireModalSpeed" class="fire-modal-label">Sebesség (egység):</label>
+                <input id="fireModalSpeed" type="number" min="0" max="10" step="0.1" value="2.0">
+            </div>
+            <div class="fire-modal-row fire-modal-dir-header">
+                <span class="fire-modal-label">Irány:</span>
+            </div>
+            <div class="fire-modal-row">
+                <label class="fire-modal-radio"><input type="radio" name="fireDirMode" value="center" checked> A térrács középpontja felé</label>
+            </div>
+            <div class="fire-modal-row">
+                <label class="fire-modal-radio"><input type="radio" name="fireDirMode" value="manual"> Kézi (X, Y, Z komponensek)</label>
+            </div>
+            <div id="fireDirManualRow" class="fire-modal-row fire-modal-manual" style="display:none;">
+                <label>X:</label><input id="fireDirX" type="number" step="0.1" value="0">
+                <label>Y:</label><input id="fireDirY" type="number" step="0.1" value="0">
+                <label>Z:</label><input id="fireDirZ" type="number" step="0.1" value="0">
+            </div>
+            <div class="fire-modal-buttons">
+                <button id="fireModalOk" class="fire-modal-btn fire-modal-ok">OK</button>
+                <button id="fireModalRemove" class="fire-modal-btn fire-modal-remove" style="display:none;">Eltávolítás</button>
+                <button id="fireModalCancel" class="fire-modal-btn fire-modal-cancel">Mégse</button>
+            </div>
+        </div>
     </div>
 
     <div id="container">
@@ -705,7 +846,7 @@
             </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.5</span>
+                <span class="version-number">v1.54</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -966,14 +1107,30 @@ window.addEventListener('DOMContentLoaded', () => {
 
 </script>
     <script>
+/* ========= Per-emitter, per-sphere collision state helper =========
+ * Returns (creating if needed) the collision-state record for a given
+ * (sphere, emitter) pair. Each emitter has its own independent flags so
+ * that an impulse applied to one source is not spuriously re-applied
+ * just because another source (e.g. the sphere's owner) has moved.
+ */
+function getCollisionState(sphereUserData, emitter) {
+    let s = sphereUserData.collisionStates.get(emitter);
+    if (!s) {
+        s = { hasLeftSource: false, canPushSource: false, hasReducedSpeed: false, hasPenetrated: false };
+        sphereUserData.collisionStates.set(emitter, s);
+    }
+    return s;
+}
+
 /* ========= WaveEmitter class ========= */
 class WaveEmitter {
     constructor(mesh) {
         this.mesh = mesh;           // source mesh (red point)
         this.spheres = [];
-        // A lastEmissionTime a korrigált időt használja (performance.now() - totalPausedTime)
-        // A konstruktorban a totalPausedTime még 0, így ez rendben van
-        this.lastEmissionTime = performance.now() - (typeof totalPausedTime !== 'undefined' ? totalPausedTime : 0);
+        // Initialize lastEmissionTime to -Infinity so the very first update() call
+        // immediately spawns a sphere (no full-interval wait before first emission).
+        // The first update() will then set it to the corrected time.
+        this.lastEmissionTime = -Infinity;
         this.physics_velocity = new THREE.Vector3(0, 0, 0); // Forráspont fizikai sebessége ütközés miatt
     }
 
@@ -1019,10 +1176,14 @@ class WaveEmitter {
             wireframeMaterial: wireMaterial,
             baseMesh: solid,
             wireframeMesh: wire,
-            emitter: this,                   // Referencia a kibocsátó forráspontra
-            hasLeftSource: false,            // Jelzi, hogy a gömb egyszer már teljesen elhagyta-e a forráspontot
-            canPushSource: false,            // Jelzi, hogy a gömb képes-e hatni a forráspontra
-            hasPenetrated: false             // Jelzi, hogy a forráspont áthatoláson esett át ezen a gömb felületén
+            emitter: this,                   // Reference to the emitter that spawned this sphere (owner)
+            // Per-emitter collision state: maps each WaveEmitter to its own
+            // { hasLeftSource, canPushSource, hasReducedSpeed, hasPenetrated } record.
+            // This is REQUIRED so that an impulse already applied to one source
+            // (e.g. Fire A entering Fire B's wave) is NOT spuriously re-applied
+            // every frame just because the wave's owner (Fire B) has moved out
+            // of its own wave (which would have reset a single shared flag).
+            collisionStates: new Map()
         };
         scene.add(g);
         spheres.push(g);
@@ -1070,8 +1231,9 @@ class WaveEmitter {
     }
 
     resync() { 
-        // Újraszinkronizálás a korrigált időhöz
-        this.lastEmissionTime = performance.now() - totalPausedTime; 
+        // After a reset, force immediate emission on the next update() call
+        // so the source point starts from a fresh wave-spawn (no first-interval delay).
+        this.lastEmissionTime = -Infinity;
     }
 
     // Collision detection and physics update — UNIFIED Δv-IMPULSE MODEL
@@ -1111,12 +1273,15 @@ class WaveEmitter {
             // Sphere must be large enough relative to the source point
             if (sphereRadius < 2 * sourceRadius) continue;
 
+            // Per-emitter state for THIS source on this sphere
+            const state = getCollisionState(u, this);
+
             // Own sphere: only allowed to influence after the source has fully left it once
             const isOurs = u.emitter === this;
-            if (isOurs && !u.canPushSource) continue;
+            if (isOurs && !state.canPushSource) continue;
 
-            // One impulse per penetration episode per sphere
-            if (u.hasReducedSpeed) continue;
+            // One impulse per penetration episode per (sphere, source) pair
+            if (state.hasReducedSpeed) continue;
 
             // Compute outward radial unit vector safely (handle source at sphere center)
             const diff = new THREE.Vector3().subVectors(sourcePos, sphereCenter);
@@ -1128,42 +1293,45 @@ class WaveEmitter {
 
             // Case A: source overtakes the surface from inside → wave passes through, no effect
             if (sourceRadial >= waveSpeed) {
-                u.hasPenetrated = true;
-                u.hasLeftSource = true;
-                u.canPushSource = true;
+                state.hasPenetrated = true;
+                state.hasLeftSource = true;
+                state.canPushSource = true;
                 continue;
             }
 
-            // Case B: surface interacts with the source. Two sub-cases by sign/magnitude
-            // of the source's radial velocity:
+            // Case B: surface interacts with the source. The radial impulse magnitude
+            // is the (positive) gap between waveSpeed and the source's current radial
+            // velocity, but CAPPED at waveSpeed. This is a single CONTINUOUS rule:
             //
-            //   B1) v_r > -waveSpeed (source slower than wave inward, stationary, or
-            //       slower than wave outward): wave WINS → source matches wave speed
-            //       outward. Δv brings v_r up to +waveSpeed.
-            //         dv = waveSpeed - sourceRadial    (always > 0 here)
+            //     dv = min(waveSpeed, waveSpeed - sourceRadial)
             //
-            //   B2) v_r <= -waveSpeed (source moves inward faster than wave expands):
-            //       source PENETRATES through the surface, losing exactly 1 unit of
-            //       inward speed. New v_r = sourceRadial + waveSpeed (still inward,
-            //       or exactly 0 at the boundary).
-            //         dv = waveSpeed
+            // It splits naturally into two regimes (no discontinuity at v_r = -waveSpeed):
             //
-            // Example: v_r = -2 (head-on, source approaching at 2) → B2, dv = 1,
-            //          new v_r = -1 (continues inward at speed 1). ✓
-            let dvScalar;
-            if (sourceRadial > -waveSpeed) {
-                dvScalar = waveSpeed - sourceRadial;          // B1: wave wins
-            } else {
-                dvScalar = waveSpeed;                         // B2: penetrate, slow by 1
-            }
+            //   B1) 0 <= v_r < waveSpeed  → dv = waveSpeed - v_r  (wave catches and matches)
+            //                                new v_r = +waveSpeed
+            //   B2) v_r < 0               → dv = waveSpeed         (wave subtracts 1 inward)
+            //                                new v_r = v_r + waveSpeed
+            //
+            // Examples (all in units of waveSpeed):
+            //   v_r =  0   → dv = 1,   new v_r =  1   (stationary becomes wave speed)
+            //   v_r = +0.8 → dv = 0.2, new v_r =  1   (catches up to wave)
+            //   v_r = -1   → dv = 1,   new v_r =  0   (exactly stops, stable boundary)
+            //   v_r = -2   → dv = 1,   new v_r = -1   (penetrates, slowed by 1)
+            //   v_r = -3   → dv = 1,   new v_r = -2
+            //
+            // The cap at waveSpeed eliminates the prior discontinuity at v_r = -waveSpeed
+            // that caused unstable behavior after a cancellation (Wave-W push gives
+            // v = +waveSpeed, then opposite Wave-F catch-up gives v_r exactly -waveSpeed,
+            // which is the FP-unstable boundary). With the cap, cancellation is robust.
+            const dvScalar = Math.min(waveSpeed, waveSpeed - sourceRadial);
             totalDelta.add(radialOutward.multiplyScalar(dvScalar));
             appliedCount++;
 
-            // Mark this sphere as already accounted for in this penetration episode
-            u.hasReducedSpeed = true;
-            u.hasPenetrated   = true;
-            u.hasLeftSource   = true;
-            u.canPushSource   = true;
+            // Mark this (sphere, source) pair as already accounted for in this penetration episode
+            state.hasReducedSpeed = true;
+            state.hasPenetrated   = true;
+            state.hasLeftSource   = true;
+            state.canPushSource   = true;
         }
 
         // Apply the vector sum of impulses additively (tangential motion preserved,
@@ -1401,10 +1569,30 @@ class WaveEmitter {
             }
         }
         
+        // Helpers for fire point entries (stored as { pos, speed, direction })
+        function defaultFireDirection(pos) {
+            const d = new THREE.Vector3().subVectors(grid3x3Center, pos);
+            if (d.lengthSq() < 1e-12) return new THREE.Vector3(1, 0, 0);
+            return d.normalize();
+        }
+        function makeFirePoint(pos) {
+            return {
+                pos: pos.clone(),
+                speed: 2.0,
+                direction: defaultFireDirection(pos),
+                dirMode: 'center'
+            };
+        }
+        function findFireEntryIndex(pos) {
+            return grid3x3SelectedFire.findIndex(e =>
+                e.pos.x === pos.x && e.pos.y === pos.y && e.pos.z === pos.z
+            );
+        }
+
         // Pont kiválasztása - háromállapotú váltás: szürke -> sárga -> piros -> szürke
         // szürke = nem kiválasztott
         // sárga = vízelem (álló forráspont)
-        // piros = tűzelem (mozgó forráspont a középpont felé)
+        // piros = tűzelem (mozgó forráspont — felugró ablakban beállítható sebesség + irány)
         function toggleGridPoint(point) {
             if (!grid3x3Mode || grid3x3Started) return;
             
@@ -1417,7 +1605,7 @@ class WaveEmitter {
                 point.material.emissive = new THREE.Color(0x332200);
                 grid3x3Selected.push(point.position.clone());
             } else if (currentState === 'water') {
-                // Sárga -> Piros (tűzelem)
+                // Sárga -> Piros (tűzelem) — modal felugró ablak a paraméterekhez
                 point.userData.selectionState = 'fire';
                 point.material.color.setHex(0xff0000); // Piros
                 point.material.emissive = new THREE.Color(0x330000);
@@ -1430,25 +1618,162 @@ class WaveEmitter {
                 if (idx > -1) {
                     grid3x3Selected.splice(idx, 1);
                 }
-                // Hozzáadás a tűzelem listához
-                grid3x3SelectedFire.push(point.position.clone());
+                // Új tűzelem bejegyzés alapértékekkel
+                const entry = makeFirePoint(point.position);
+                grid3x3SelectedFire.push(entry);
+                updateSelectedCount();
+                // Felugró ablak megnyitása (új tűzelem → Mégse visszaállít sárgára)
+                openFirePointModal(point, entry, /* isNew */ true);
+                return;
             } else {
                 // Piros -> Szürke (visszavonás)
                 point.userData.selectionState = 'none';
                 point.material.color.setHex(0x444444); // Szürke
                 point.material.emissive = new THREE.Color(0x000000);
                 // Eltávolítás a tűzelem listából
-                const idx = grid3x3SelectedFire.findIndex(pos => 
-                    pos.x === point.position.x && 
-                    pos.y === point.position.y && 
-                    pos.z === point.position.z
-                );
+                const idx = findFireEntryIndex(point.position);
                 if (idx > -1) {
                     grid3x3SelectedFire.splice(idx, 1);
                 }
             }
             
             updateSelectedCount();
+        }
+
+        // ====== Fire point modal logic (3x3 grid) ======
+        let fireModalState = null; // { point, entry, isNew, originalSnapshot }
+        function openFirePointModal(point, entry, isNew) {
+            const modal = document.getElementById('firePointModal');
+            if (!modal) return;
+            // Snapshot for Cancel (only meaningful in edit mode)
+            const snapshot = {
+                speed: entry.speed,
+                direction: entry.direction.clone(),
+                dirMode: entry.dirMode || 'center'
+            };
+            fireModalState = { point, entry, isNew, snapshot };
+
+            const p = entry.pos;
+            document.getElementById('fireModalPos').textContent =
+                `x=${p.x.toFixed(2)}, y=${p.y.toFixed(2)}, z=${p.z.toFixed(2)}`;
+            document.getElementById('fireModalSpeed').value = entry.speed.toFixed(2);
+
+            const radios = document.getElementsByName('fireDirMode');
+            const mode = entry.dirMode || 'center';
+            for (const r of radios) r.checked = (r.value === mode);
+            document.getElementById('fireDirManualRow').style.display = (mode === 'manual') ? 'flex' : 'none';
+            document.getElementById('fireDirX').value = entry.direction.x.toFixed(2);
+            document.getElementById('fireDirY').value = entry.direction.y.toFixed(2);
+            document.getElementById('fireDirZ').value = entry.direction.z.toFixed(2);
+
+            // In edit mode show the Remove button; in new mode hide it (use Mégse to revert)
+            document.getElementById('fireModalRemove').style.display = isNew ? 'none' : 'inline-block';
+
+            modal.style.display = 'flex';
+        }
+        function closeFirePointModal() {
+            const modal = document.getElementById('firePointModal');
+            if (modal) modal.style.display = 'none';
+            fireModalState = null;
+        }
+        function applyFireModalToEntry() {
+            if (!fireModalState) return false;
+            const entry = fireModalState.entry;
+            const speedVal = parseFloat(document.getElementById('fireModalSpeed').value);
+            if (!isFinite(speedVal) || speedVal < 0) {
+                alert('A sebességnek nem-negatív számnak kell lennie.');
+                return false;
+            }
+            const radios = document.getElementsByName('fireDirMode');
+            let mode = 'center';
+            for (const r of radios) if (r.checked) mode = r.value;
+
+            let dir;
+            if (mode === 'manual') {
+                const dx = parseFloat(document.getElementById('fireDirX').value);
+                const dy = parseFloat(document.getElementById('fireDirY').value);
+                const dz = parseFloat(document.getElementById('fireDirZ').value);
+                if (![dx, dy, dz].every(isFinite)) {
+                    alert('Az irány komponenseinek számoknak kell lenniük.');
+                    return false;
+                }
+                dir = new THREE.Vector3(dx, dy, dz);
+                if (dir.lengthSq() < 1e-12) {
+                    alert('Az irányvektor nem lehet nulla.');
+                    return false;
+                }
+                dir.normalize();
+            } else {
+                dir = defaultFireDirection(entry.pos);
+            }
+            entry.speed = speedVal;
+            entry.direction = dir;
+            entry.dirMode = mode;
+            return true;
+        }
+        function revertFireFromCancel() {
+            // For a NEW fire point: Mégse → revert state to water (yellow)
+            if (!fireModalState) return;
+            const { point, entry, isNew, snapshot } = fireModalState;
+            if (isNew) {
+                const idx = findFireEntryIndex(entry.pos);
+                if (idx > -1) grid3x3SelectedFire.splice(idx, 1);
+                point.userData.selectionState = 'water';
+                point.material.color.setHex(0xffd700);
+                point.material.emissive = new THREE.Color(0x332200);
+                grid3x3Selected.push(point.position.clone());
+                updateSelectedCount();
+            } else {
+                // Restore snapshot values onto the existing entry
+                entry.speed = snapshot.speed;
+                entry.direction = snapshot.direction;
+                entry.dirMode = snapshot.dirMode;
+            }
+        }
+        function removeFireFromModal() {
+            if (!fireModalState) return;
+            const { point, entry } = fireModalState;
+            const idx = findFireEntryIndex(entry.pos);
+            if (idx > -1) grid3x3SelectedFire.splice(idx, 1);
+            point.userData.selectionState = 'none';
+            point.material.color.setHex(0x444444);
+            point.material.emissive = new THREE.Color(0x000000);
+            updateSelectedCount();
+        }
+        // Modal event wiring (deferred until DOM ready since this script runs in <head> order)
+        (function wireFireModalEvents() {
+            const okBtn = document.getElementById('fireModalOk');
+            const cancelBtn = document.getElementById('fireModalCancel');
+            const removeBtn = document.getElementById('fireModalRemove');
+            const radios = document.getElementsByName('fireDirMode');
+            if (!okBtn || !cancelBtn || !removeBtn) return;
+            okBtn.addEventListener('click', () => {
+                if (applyFireModalToEntry()) closeFirePointModal();
+            });
+            cancelBtn.addEventListener('click', () => {
+                revertFireFromCancel();
+                closeFirePointModal();
+            });
+            removeBtn.addEventListener('click', () => {
+                removeFireFromModal();
+                closeFirePointModal();
+            });
+            for (const r of radios) {
+                r.addEventListener('change', () => {
+                    const manualRow = document.getElementById('fireDirManualRow');
+                    manualRow.style.display = (r.value === 'manual' && r.checked) ? 'flex' : manualRow.style.display;
+                    // Recompute manual row visibility based on current selection
+                    const sel = Array.from(radios).find(x => x.checked);
+                    manualRow.style.display = (sel && sel.value === 'manual') ? 'flex' : 'none';
+                });
+            }
+        })();
+
+        // Open the edit modal for an already-red grid point (used by right-click)
+        function editFirePointAt(point) {
+            const idx = findFireEntryIndex(point.position);
+            if (idx < 0) return;
+            openFirePointModal(point, grid3x3SelectedFire[idx], /* isNew */ false);
         }
         
         // 3x3-as térrács szimuláció indítása
@@ -1460,7 +1785,12 @@ class WaveEmitter {
             
             // Elmentjük a beállításokat az Újrakezd funkcióhoz
             grid3x3SavedWater = grid3x3Selected.map(pos => pos.clone());
-            grid3x3SavedFire = grid3x3SelectedFire.map(pos => pos.clone());
+            grid3x3SavedFire = grid3x3SelectedFire.map(e => ({
+                pos: e.pos.clone(),
+                speed: e.speed,
+                direction: e.direction.clone(),
+                dirMode: e.dirMode || 'center'
+            }));
             grid3x3HasSavedConfig = true;
             
             // Panel elrejtése
@@ -1505,7 +1835,8 @@ class WaveEmitter {
             });
             
             // Tűzelem forráspontok létrehozása (piros kiválasztás - mozgó)
-            grid3x3SavedFire.forEach((pos, index) => {
+            // Each entry: { pos, speed, direction (unit), dirMode }
+            grid3x3SavedFire.forEach((entry, index) => {
                 const geometry = new THREE.SphereGeometry(0.007, 16, 16);
                 const material = new THREE.MeshPhongMaterial({
                     color: 0xff0000, // Piros forráspont (tűzelem)
@@ -1513,17 +1844,20 @@ class WaveEmitter {
                     specular: 0x444444
                 });
                 const sourceMesh = new THREE.Mesh(geometry, material);
-                sourceMesh.position.copy(pos);
+                sourceMesh.position.copy(entry.pos);
                 scene.add(sourceMesh);
                 
                 // Emitter létrehozása - mozgó forráspont (tűzelem)
                 const newEmitter = new WaveEmitter(sourceMesh);
                 newEmitter.isFireElement = true; // Tűzelem jelölő
                 
-                // Sebesség beállítása a középpont felé (2-es sebesség)
-                const direction = new THREE.Vector3().subVectors(grid3x3Center, pos).normalize();
-                const fireSpeed = 2.0 * PHYSICS_UNIT_SPEED; // 2-es sebesség
-                newEmitter.physics_velocity.copy(direction.multiplyScalar(fireSpeed));
+                // Apply the per-point speed and direction stored in the entry
+                // (defaults: speed=2, direction toward grid3x3Center).
+                const dir = (entry.dirMode === 'manual')
+                    ? entry.direction.clone().normalize()
+                    : defaultFireDirection(entry.pos);
+                const fireSpeed = entry.speed * PHYSICS_UNIT_SPEED;
+                newEmitter.physics_velocity.copy(dir.multiplyScalar(fireSpeed));
                 
                 emitters.push(newEmitter);
                 grid3x3Emitters.push(newEmitter);
@@ -2011,6 +2345,24 @@ if (movementType === 'dual') {
                 isLeftMouseDown = true;
                 updateMousePosition(event);
             } else if (event.button === 2) { // Jobb egérgomb
+                // 3x3-as térrács kiválasztási fázisában: jobb klikk piros (tűzelem) ponton
+                // → felugró ablak a paraméterek szerkesztéséhez (irány + sebesség)
+                if (grid3x3Mode && !grid3x3Started) {
+                    const rect = renderer.domElement.getBoundingClientRect();
+                    const mouseVector = new THREE.Vector2(
+                        ((event.clientX - rect.left) / rect.width) * 2 - 1,
+                        -((event.clientY - rect.top) / rect.height) * 2 + 1
+                    );
+                    grid3x3Raycaster.setFromCamera(mouseVector, camera);
+                    const intersects = grid3x3Raycaster.intersectObjects(grid3x3Points);
+                    if (intersects.length > 0) {
+                        const hit = intersects[0].object;
+                        if (hit.userData && hit.userData.selectionState === 'fire') {
+                            editFirePointAt(hit);
+                            return; // Ne indítson kamera-forgatást
+                        }
+                    }
+                }
                 isRightMouseDown = true;
                 lastMouseX = event.clientX;
                 lastMouseY = event.clientY;
@@ -2982,29 +3334,28 @@ function updateSpheres() {
         // Élettartam növelése
         userData.life++;
         
-        // Ellenőrizzük, hogy a gömb kapcsolatban van-e a saját forráspontjával
-        if (userData.emitter) {
-            const sourcePosition = userData.emitter.mesh.position;
-            const sphereCenter = userData.centerPosition;
-            const sourceRadius = 0.007; // A forráspont sugara
-            const sphereRadius = userData.scale * 0.1; // A gömb jelenlegi sugara
-            
-            // Távolság a forráspont és a gömb között
-            const distance = sphereCenter.distanceTo(sourcePosition);
-            
-            // Ha a gömb nem érintkezik a forrásponttal (forráspont kívül van)
+        // Update per-emitter collision state for EVERY active emitter, not just
+        // the sphere's owner. This is essential: a wave's impulse on one source
+        // (e.g. Fire A) must NOT be reset just because another source (the wave's
+        // owner Fire B) has moved out of its own wave. Each emitter has its own
+        // independent (hasLeftSource / canPushSource / hasReducedSpeed / hasPenetrated)
+        // record stored in userData.collisionStates.
+        const sphereCenter = userData.centerPosition;
+        const sourceRadius = 0.007;
+        const sphereRadius = userData.scale * 0.1;
+        for (const e of emitters) {
+            if (!e || !e.mesh) continue;
+            const state = getCollisionState(userData, e);
+            const distance = sphereCenter.distanceTo(e.mesh.position);
             if (distance > sphereRadius + sourceRadius) {
-                userData.hasLeftSource = true;
-                // FONTOS: Ha a forráspont kívülre került, reseteljük MINDKÉT flag-et
-                // Ez lehetővé teszi, hogy ha újra belép a gömbbe, újra működjön az ütközésdetektálás
-                // és a sebességcsökkentés is újra megtörténjen
-                userData.hasPenetrated = false;
-                userData.hasReducedSpeed = false;
+                // This source is OUTSIDE the wave: mark as having left and clear
+                // the per-source impulse flags so a future re-entry can apply again.
+                state.hasLeftSource = true;
+                state.hasPenetrated = false;
+                state.hasReducedSpeed = false;
             }
-            
-            // Ha már elhagyta a forráspontot, akkor engedélyezzük, hogy taszítsa azt
-            if (userData.hasLeftSource) {
-                userData.canPushSource = true;
+            if (state.hasLeftSource) {
+                state.canPushSource = true;
             }
         }
         
@@ -3128,10 +3479,19 @@ const planeX = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);  // Keep negative
 const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);  // Keep negative Y side
 
 // Returns the currently active clipping planes (used per-material on wave spheres only).
+// NOTE: This function can be called from spawnSphere() during the very first animate()
+// frame (triggered by init() at the bottom of the script). At that point, the `let`
+// declarations of clipXActive/clipYActive/planeX/planeY further down in this script
+// have not yet executed, so reading them directly would throw a TDZ ReferenceError.
+// We guard with `typeof` to return an empty plane list until they are initialized.
 function getActiveClipPlanes() {
     const planes = [];
-    if (clipXActive) planes.push(planeX);
-    if (clipYActive) planes.push(planeY);
+    try {
+        if (typeof clipXActive !== 'undefined' && clipXActive) planes.push(planeX);
+        if (typeof clipYActive !== 'undefined' && clipYActive) planes.push(planeY);
+    } catch (_) {
+        // TDZ access during very first frame — treat as no clipping yet.
+    }
     return planes;
 }
 

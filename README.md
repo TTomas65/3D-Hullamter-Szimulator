@@ -5,6 +5,23 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ![Running image](kepek/Kepernyo_04.jpg)
 
 
+## Újdonságok az 1.54-es verzióban (az 1.5-ös verzióhoz képest)
+
+**Per-emitter, per-sphere ütközési állapotkezelés**:
+- A korábbi modell egyetlen `hasReducedSpeed` flag-et tárolt gömbönként, és ezt a gömb tulajdonosának pozíciója alapján resetelte minden frame-ben. Ez hibás volt több forráspont esetén: ha pl. Fire B kibocsájtott egy hullámot, majd elindult más irányba, a flag minden frame-ben resetelődött, és a hullámba belépő Fire A-t a hullám folyamatosan tolta maga előtt, ahelyett, hogy egyetlen impulzussal lassította volna.
+- Mostantól minden gömb `Map<emitter, state>` szerkezetben tárolja az egyes forráspontokra vonatkozó állapotot (`hasLeftSource`, `canPushSource`, `hasReducedSpeed`, `hasPenetrated`). Az `updateSpheres()` minden aktív emitterre külön frissíti a saját állapotát, így egy adott forráspont csak akkor kap újra impulzust egy gömbtől, ha **ő maga** lépett ki és lépett vissza.
+- Eredmény: a 3×3-as rácsban több tűzelem és vízelem keresztezése is fizikailag korrekt — egy hullám pontosan egy impulzust ad le egy adott forráspontra a behatolási epizód során.
+
+**Folytonos Δv-szabály a határponton**:
+- Az 1.5-ös verzióban diszkontinuitás volt a Δv képletében pontosan `v_r = −waveSpeed`-nél (a B1/B2 ágak váltása). Ez floating-point szempontból instabil volt: minden cancellation pontosan ezen a határponton zajlott le, és a numerikus zaj felváltva a helyes (`v=0`) vagy hibás (`v` megfordul az álló forrás felé) ágat választotta.
+- Az új, **folytonos cap szabály**: `Δv = min(waveSpeed, waveSpeed − v_r)`. Egyetlen képlet, nincs ágválasztás `v_r < 0` esetén — ott mindig pontosan `waveSpeed` az impulzus.
+- Eredmény: szembefutó hullámok (egyik forrás `+1` push, másik `−1` push) **minden esetben stabilan kioltják egymást**, a forrás 0-nál marad, nem flickerel ki-be.
+- Az 1.5-ös spec konkrét példái változatlanok (`v_r = 0 → +1`, `v_r = −2 → −1`, `v_r = +0.8 → +1`). Az egyetlen különbség a `v_r ∈ (−1, 0)` átmeneti tartományban van, ahol most a hullám 1 egységgel csökkenti a befelé sebességet ahelyett, hogy a saját sebességére rántaná a forrást — ez teszi a szabályt folytonossá.
+
+**Azonnali első kibocsájtás indításkor**:
+- Korábban a szimuláció elindításakor (vízelem, tűzelem, körmozgás, spirál, 3×3 rács) a forráspont egy teljes kibocsájtási intervallumot várt az első hullám előtt, így a tűzelem már megtett egy darab utat, mire az első hullámát létrehozta.
+- A `WaveEmitter` konstruktorban és a `resync()`-ben a `lastEmissionTime` mostantól `-Infinity`-re inicializálódik, így az **első frame-ben azonnal** kibocsájtódik a hullám a forráspont kezdeti pozíciójában. A reset (Újrakezd) gomb után is helyesen indul.
+
 ## Újdonságok az 1.5-ös verzióban (az 1.43-as verzióhoz képest)
 
 **Egységesített Δv-impulzus ütközésmodell**:
