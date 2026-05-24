@@ -5,6 +5,41 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ![Running image](kepek/Kepernyo_04.jpg)
 
 
+## Újdonságok az 1.5-ös verzióban (az 1.43-as verzióhoz képest)
+
+**Egységesített Δv-impulzus ütközésmodell**:
+A korábbi, négy külön ágra (befelé mozgás / álló / lassan kifelé / gyorsan kifelé) bontott ütközéslogikát egyetlen, fizikailag konzisztens szabály váltotta fel. Minden átfedő hullámfelületre a forráspont radiális sebességkomponense (`v_r = v · r̂`) alapján számolódik az impulzus:
+
+- Ha `v_r ≥ 1` (forráspont belülről kifelé előzi a felületet) → **nincs hatás**, a hullám áthalad.
+- Egyébként → `Δv = (1 − v_r) · r̂` impulzus hozzáadódik az eredőhöz.
+
+Az összes egyidejűleg átfedő gömbtől kapott `Δv_i`-t a program **vektoriálisan összegzi** és **hozzáadja** (nem felülírja) a forráspont sebességéhez. Ez automatikusan kezeli:
+
+- a szimmetrikus szembehullámok kioltását (forráspont egy helyben marad, hullámok áthaladnak),
+- az egyidejűleg több irányból érkező hullámok eredő hatását (akár 1-nél nagyobb eredő sebesség is kialakulhat),
+- a forráspont tangenciális mozgásának megőrzését (pl. fire módban a felhasználó által beállított oldalirányú sebesség nem törlődik ki az ütközéseknél),
+- minden egyes új hullámfelülettel való találkozás külön elszámolását (a `hasReducedSpeed` flag csak addig blokkol, amíg a forráspont a gömbön belül van, kilépés után automatikusan reset).
+
+**Egyéb javítások**:
+- A `radialOutward` normalizálás biztonságos numerikus kezelése (forráspont a gömb középpontján → epizód kihagyva NaN helyett).
+- A korábbi „nagy sebességű kifelé áthatolás 1 egység sebességcsökkenéssel" ág megszüntetve — már nem volt összhangban a fizikai modellel.
+- A taszítás és az áthatolás többé nem zárja ki egymást ugyanabban a frame-ben: minden hullám hozzájárul az eredőhöz.
+
+## Újdonságok az 1.43-as verzióban (az 1.42-es verzióhoz képest)
+
+**Ütközésmodell további finomítása**:
+- Ha a forráspont **befelé mozog** (szembe a hullámmal), mindig sebességcsökkenés történik
+- Ha a forráspont **áll** vagy **kifelé mozog** lassabban mint a hullám, akkor taszítás történik
+- Ez megoldja azt a problémát, hogy a befelé mozgó forráspont a második rétegnél megáll (2→1→0), nem pedig visszapattan
+
+## Újdonságok az 1.42-es verzióban (az 1.41-es verzióhoz képest)
+
+**Ütközésmodell javítása**:
+- Az összes ütköző hullám hatását vektoriálisan összegzi
+- Ha ellentétes irányú hullámok érik el a forráspontot, a hatásuk kioltja egymást
+- A taszítás mindig működik, függetlenül attól, hogy a hullám korábban áthaladt-e a forráspontot
+- Javított Újrakezd gomb működés a 3x3-as térrács módban
+
 ## Újdonságok az 1.41-es verzióban (az 1.40-es verzióhoz képest)
 
 **Vízelem és Tűzelem forráspontok a 3x3-as térrácsban**:

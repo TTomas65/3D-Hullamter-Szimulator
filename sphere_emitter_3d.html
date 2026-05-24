@@ -364,6 +364,39 @@
             margin-left: 8px;
         }
 
+        /* Velocity display: stack the title and per-emitter rows vertically */
+        #velocity-container.velocity-multi {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+            min-width: 170px;
+        }
+
+        .velocity-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            width: 100%;
+        }
+
+        .velocity-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: baseline;
+            gap: 10px;
+            font-size: 12px;
+            opacity: 0.95;
+        }
+
+        .velocity-label {
+            font-weight: 600;
+            opacity: 0.85;
+        }
+
+        .velocity-number {
+            font-variant-numeric: tabular-nums;
+        }
+
         .github-link {
             display: inline-flex;
             align-items: center;
@@ -664,13 +697,15 @@
 
     <div id="container">
         <div id="version">
-            <div id="velocity-container" class="version-container">
+            <div id="velocity-container" class="version-container velocity-multi">
                 <span class="version-title">Forráspont Sebessége</span>
-                <span id="velocity-value" class="version-number">0.000</span>
+                <div id="velocity-list" class="velocity-list">
+                    <span class="velocity-row"><span class="velocity-label">#1</span><span class="velocity-number">0.000</span></span>
+                </div>
             </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.41</span>
+                <span class="version-number">v1.5</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -947,20 +982,25 @@ class WaveEmitter {
     spawnSphere() {
         // create a new sphere at current position
         const geometry = new THREE.SphereGeometry(0.1, 32, 24);
+        // Wave-sphere materials receive the currently active cross-section planes,
+        // so cuts apply only to the expanding waves (not to the source point).
+        const activeClipPlanes = (typeof getActiveClipPlanes === 'function') ? getActiveClipPlanes() : [];
         const baseMaterial = new THREE.MeshPhongMaterial({
             color: 0x6666ff,
             transparent: sphereOpacity > 0,
             opacity: 1 - sphereOpacity,
             shininess: 80,
             specular: 0x444444,
-            side: THREE.DoubleSide
+            side: THREE.DoubleSide,
+            clippingPlanes: activeClipPlanes
         });
         const wireMaterial = new THREE.MeshBasicMaterial({
             color: 0x404040,
             wireframe: true,
             transparent: false,
             opacity: 1.0,
-            depthTest: true
+            depthTest: true,
+            clippingPlanes: activeClipPlanes
         });
         const g = new THREE.Group();
         const solid = new THREE.Mesh(geometry, baseMaterial);
@@ -1034,106 +1074,105 @@ class WaveEmitter {
         this.lastEmissionTime = performance.now() - totalPausedTime; 
     }
 
-    // Ütközésdetektálás és fizika frissítése
-    // A fizikai modell a forráspont és a táguló gömbfelület RELATÍV sebességét veszi figyelembe
-    // A gömb tágulási sebessége mindig 1 fizikai egység (PHYSICS_UNIT_SPEED)
+    // Collision detection and physics update — UNIFIED Δv-IMPULSE MODEL
+    //
+    // Single universal rule applied per overlapping wave sphere this frame:
+    //   radialOutward = normalize(sourcePos - sphereCenter)        (outward surface normal)
+    //   sourceRadial  = physics_velocity · radialOutward            (source's radial speed)
+    //   waveSpeed     = PHYSICS_UNIT_SPEED                          (= 1 physical unit)
+    //
+    //   if sourceRadial >= waveSpeed:
+    //       source overtakes the surface from inside → NO EFFECT (wave passes through)
+    //   else:
+    //       Δv_i = (waveSpeed - sourceRadial) · radialOutward       (always positive scalar)
+    //
+    // All Δv_i from currently colliding spheres are summed VECTORIALLY (so symmetric
+    // opposite waves cancel) and ADDED to physics_velocity (tangential motion preserved).
+    //
+    // The hasReducedSpeed flag ensures one impulse per penetration episode per sphere;
+    // it is reset in updateSpheres() once the source leaves the sphere.
     updateCollisionPhysics() {
-        const sourceRadius = 0.007; // A forráspont sugara
-        const sphereExpansionSpeed = PHYSICS_UNIT_SPEED; // A gömb tágulási sebessége = 1 fizikai egység
+        const sourceRadius = 0.007;                       // Source point radius
+        const waveSpeed    = PHYSICS_UNIT_SPEED;          // Wave surface expansion speed = 1 unit
+        const sourcePos    = this.mesh.position;
 
-        // Ütközés ellenőrzése az összes gömbbel
+        const totalDelta = new THREE.Vector3(0, 0, 0);    // Σ Δv_i
+        let appliedCount = 0;
+
         for (let sphere of spheres) {
-            const userData = sphere.userData;
-            const sphereCenter = userData.centerPosition;
-            const sphereRadius = userData.scale * 0.1; // 0.1 az alapméret
-            const sourcePosition = this.mesh.position;
-            const distance = sphereCenter.distanceTo(sourcePosition);
+            const u = sphere.userData;
+            const sphereCenter = u.centerPosition;
+            const sphereRadius = u.scale * 0.1;
+            const distance = sphereCenter.distanceTo(sourcePos);
 
-            // Ütközési feltétel - a forráspont a gömb felületén vagy belül van
-            if (distance <= sphereRadius + sourceRadius) {
-                const isOurEmitterSphere = userData.emitter === this;
-                const canInfluenceSource = !isOurEmitterSphere || userData.canPushSource;
+            // Source must be on or inside the wave surface
+            if (distance > sphereRadius + sourceRadius) continue;
 
-                if (sphereRadius >= 2 * sourceRadius && canInfluenceSource) {
-                    // Irányvektor a gömb középpontjából a forráspont felé (radiális irány, kifelé)
-                    const radialOutward = new THREE.Vector3()
-                        .subVectors(sourcePosition, sphereCenter)
-                        .normalize();
-                    
-                    if (radialOutward.lengthSq() === 0) continue;
+            // Sphere must be large enough relative to the source point
+            if (sphereRadius < 2 * sourceRadius) continue;
 
-                    // A forráspont radiális sebessége (pozitív = kifelé mozog, negatív = befelé mozog)
-                    const sourceRadialSpeed = this.physics_velocity.dot(radialOutward);
-                    
-                    // A gömbfelület radiális sebessége (mindig kifelé tágul, tehát pozitív)
-                    const surfaceRadialSpeed = sphereExpansionSpeed;
-                    
-                    // RELATÍV sebesség: forráspont sebessége a gömbfelülethez képest
-                    // Ha pozitív: a forráspont gyorsabban mozog kifelé mint a felület (előzi/elhagyja)
-                    // Ha negatív: a felület utoléri a forráspontot (befelé mozog vagy lassabban kifelé)
-                    const relativeRadialSpeed = sourceRadialSpeed - surfaceRadialSpeed;
-                    
-                    // Normalizált relatív sebesség (fizikai egységekben)
-                    const normalizedRelativeSpeed = relativeRadialSpeed / PHYSICS_UNIT_SPEED;
+            // Own sphere: only allowed to influence after the source has fully left it once
+            const isOurs = u.emitter === this;
+            if (isOurs && !u.canPushSource) continue;
 
-                    // DEBUG log
-                    console.log(`Collision: sourceRadial=${(sourceRadialSpeed/PHYSICS_UNIT_SPEED).toFixed(2)}, surfaceRadial=${(surfaceRadialSpeed/PHYSICS_UNIT_SPEED).toFixed(2)}, relative=${normalizedRelativeSpeed.toFixed(2)}`);
+            // One impulse per penetration episode per sphere
+            if (u.hasReducedSpeed) continue;
 
-                    // ESET 1: A forráspont KIFELÉ mozog gyorsabban mint a felület tágul
-                    // (előzi vagy elhagyja a felületet belülről kifelé)
-                    // Ilyenkor a felület NEM HAT a forráspontra
-                    if (relativeRadialSpeed > 0) {
-                        // Belülről kifelé előzés/elhagyás - nincs hatás
-                        userData.hasPenetrated = true;
-                        userData.hasLeftSource = true;
-                        userData.canPushSource = true;
-                        console.log('OUTWARD: Source moving faster than surface - no effect');
-                        continue; // Nincs további feldolgozás erre a gömbra
-                    }
-                    
-                    // ESET 2: A felület UTOLÉRI a forráspontot (relatív sebesség negatív)
-                    // A forráspont vagy befelé mozog, vagy lassabban kifelé mint a felület
-                    
-                    // Az "ütközési" sebesség nagysága (abszolút érték)
-                    const collisionSpeed = Math.abs(normalizedRelativeSpeed);
-                    
-                    if (collisionSpeed <= 1.0) {
-                        // ALACSONY relatív sebesség (≤1): TASZÍTÁS
-                        // A felület tolja maga előtt a forráspontot
-                        // De csak akkor, ha még nincs áthatolás folyamatban ezen a gömbnél
-                        if (!userData.hasPenetrated) {
-                            // A forráspont sebességét a taszítás irányába állítjuk (radiálisan kifelé)
-                            // A sebesség nagysága = gömbfelület tágulási sebessége (1 fizikai egység)
-                            this.physics_velocity = radialOutward.clone().multiplyScalar(sphereExpansionSpeed);
-                            console.log('LOW RELATIVE SPEED: Surface pushes source outward');
-                        } else {
-                            // Áthatolás már folyamatban volt - hagyjuk folytatni
-                            console.log('LOW RELATIVE SPEED: Penetration in progress - continue');
-                        }
-                    } else {
-                        // NAGY relatív sebesség (>1): ÁTHATOLÁS sebességcsökkenéssel
-                        // A forráspont áthatol a felületen, de a sebessége 1-gyel csökken
-                        if (!userData.hasReducedSpeed) {
-                            const oldSpeed = this.physics_velocity.length();
-                            
-                            // A sebesség 1 fizikai egységgel csökken a MOZGÁS irányában
-                            const moveDirection = this.physics_velocity.clone().normalize();
-                            this.physics_velocity.sub(moveDirection.multiplyScalar(PHYSICS_UNIT_SPEED));
-                            
-                            const newSpeed = this.physics_velocity.length();
-                            console.log(`HIGH RELATIVE SPEED: Penetration - speed reduced from ${(oldSpeed/PHYSICS_UNIT_SPEED).toFixed(2)} to ${(newSpeed/PHYSICS_UNIT_SPEED).toFixed(2)}`);
-                            
-                            // Jelöljük, hogy ez a gömb már okozott sebességcsökkenést
-                            userData.hasReducedSpeed = true;
-                            userData.hasPenetrated = true;
-                            userData.hasLeftSource = true;
-                            userData.canPushSource = true;
-                        } else {
-                            console.log('HIGH RELATIVE SPEED: Already reduced for this sphere');
-                        }
-                    }
-                }
+            // Compute outward radial unit vector safely (handle source at sphere center)
+            const diff = new THREE.Vector3().subVectors(sourcePos, sphereCenter);
+            const diffLenSq = diff.lengthSq();
+            if (diffLenSq < 1e-12) continue;
+            const radialOutward = diff.multiplyScalar(1 / Math.sqrt(diffLenSq));
+
+            const sourceRadial = this.physics_velocity.dot(radialOutward);
+
+            // Case A: source overtakes the surface from inside → wave passes through, no effect
+            if (sourceRadial >= waveSpeed) {
+                u.hasPenetrated = true;
+                u.hasLeftSource = true;
+                u.canPushSource = true;
+                continue;
             }
+
+            // Case B: surface interacts with the source. Two sub-cases by sign/magnitude
+            // of the source's radial velocity:
+            //
+            //   B1) v_r > -waveSpeed (source slower than wave inward, stationary, or
+            //       slower than wave outward): wave WINS → source matches wave speed
+            //       outward. Δv brings v_r up to +waveSpeed.
+            //         dv = waveSpeed - sourceRadial    (always > 0 here)
+            //
+            //   B2) v_r <= -waveSpeed (source moves inward faster than wave expands):
+            //       source PENETRATES through the surface, losing exactly 1 unit of
+            //       inward speed. New v_r = sourceRadial + waveSpeed (still inward,
+            //       or exactly 0 at the boundary).
+            //         dv = waveSpeed
+            //
+            // Example: v_r = -2 (head-on, source approaching at 2) → B2, dv = 1,
+            //          new v_r = -1 (continues inward at speed 1). ✓
+            let dvScalar;
+            if (sourceRadial > -waveSpeed) {
+                dvScalar = waveSpeed - sourceRadial;          // B1: wave wins
+            } else {
+                dvScalar = waveSpeed;                         // B2: penetrate, slow by 1
+            }
+            totalDelta.add(radialOutward.multiplyScalar(dvScalar));
+            appliedCount++;
+
+            // Mark this sphere as already accounted for in this penetration episode
+            u.hasReducedSpeed = true;
+            u.hasPenetrated   = true;
+            u.hasLeftSource   = true;
+            u.canPushSource   = true;
+        }
+
+        // Apply the vector sum of impulses additively (tangential motion preserved,
+        // symmetric opposite waves cancel out automatically).
+        if (appliedCount > 0) {
+            const oldSpeed = this.physics_velocity.length() / PHYSICS_UNIT_SPEED;
+            this.physics_velocity.add(totalDelta);
+            const newSpeed = this.physics_velocity.length() / PHYSICS_UNIT_SPEED;
+            console.log(`COLLISION: ${appliedCount} wave(s), |Δv|=${(totalDelta.length()/PHYSICS_UNIT_SPEED).toFixed(2)}, speed ${oldSpeed.toFixed(2)} → ${newSpeed.toFixed(2)}`);
         }
     }
 }
@@ -1507,6 +1546,10 @@ class WaveEmitter {
             renderer = new THREE.WebGLRenderer({ antialias: true });
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setClearColor(0xcccccc, 1);
+            // Use per-material clipping planes (so source points and timeline markers
+            // can opt out of the cross-section view). Global renderer.clippingPlanes
+            // is intentionally left empty.
+            renderer.localClippingEnabled = true;
             document.getElementById('container').appendChild(renderer.domElement);
             
             // Világítás - Fejlesztett világítási rendszer
@@ -2617,7 +2660,9 @@ if (emitter.timeline) {
         }
         
         function animate(time) {
-            const pos_before_frame = (emitters.length > 0 && emitters[0]) ? emitters[0].mesh.position.clone() : null;
+            // Track every active emitter's position at frame start so we can display
+            // per-emitter speed (based on the actual displacement during this frame).
+            const positions_before_frame = emitters.map(e => (e && e.mesh) ? e.mesh.position.clone() : null);
             requestAnimationFrame(animate);
             
             // Billentyűzetes kamera mozgatás kezelése
@@ -2817,18 +2862,27 @@ if (emitter.timeline) {
                 // Gömbök frissítése
                 updateSpheres();
             }
-            // Forráspont sebességének kijelzése a teljes, tényleges elmozdulás alapján
-            if (pos_before_frame) {
-                const pos_after_frame = emitters[0].mesh.position;
-                const total_velocity_this_frame = new THREE.Vector3().subVectors(pos_after_frame, pos_before_frame);
-                const speed = total_velocity_this_frame.length();
-                
-                // A sebességet a fizikai egységhez (gömb tágulási sebessége) viszonyítjuk
-                const displaySpeed = speed / PHYSICS_UNIT_SPEED;
-                const velocityElement = document.getElementById('velocity-value');
-                if (velocityElement) {
-                    velocityElement.textContent = displaySpeed.toFixed(3);
+            // Display the instantaneous speed of every active emitter, numbered.
+            // Speed is derived from the actual displacement during this frame and
+            // normalized to PHYSICS_UNIT_SPEED (so "1.000" == wave expansion speed).
+            const velocityListEl = document.getElementById('velocity-list');
+            if (velocityListEl && emitters.length > 0) {
+                let html = '';
+                for (let i = 0; i < emitters.length; i++) {
+                    const e = emitters[i];
+                    if (!e || !e.mesh) continue;
+                    const before = positions_before_frame[i];
+                    let displaySpeed = 0;
+                    if (before) {
+                        const dx = e.mesh.position.x - before.x;
+                        const dy = e.mesh.position.y - before.y;
+                        const dz = e.mesh.position.z - before.z;
+                        const speed = Math.sqrt(dx * dx + dy * dy + dz * dz);
+                        displaySpeed = speed / PHYSICS_UNIT_SPEED;
+                    }
+                    html += `<span class="velocity-row"><span class="velocity-label">#${i + 1}</span><span class="velocity-number">${displaySpeed.toFixed(3)}</span></span>`;
                 }
+                velocityListEl.innerHTML = html;
             }
             
             // Renderelés mindig fut (hogy az egér mozgatás látható legyen pause alatt is)
@@ -3073,12 +3127,30 @@ let clipYActive = false;
 const planeX = new THREE.Plane(new THREE.Vector3(1, 0, 0), 0);  // Keep negative X side
 const planeY = new THREE.Plane(new THREE.Vector3(0, 1, 0), 0);  // Keep negative Y side
 
-function updateClipping() {
+// Returns the currently active clipping planes (used per-material on wave spheres only).
+function getActiveClipPlanes() {
     const planes = [];
     if (clipXActive) planes.push(planeX);
     if (clipYActive) planes.push(planeY);
-    renderer.clippingPlanes = planes;
-    renderer.localClippingEnabled = planes.length > 0;
+    return planes;
+}
+
+// Assigns the active clipping planes to all existing wave-sphere materials.
+// Source points (red/blue/yellow markers) and timeline markers/lines are NOT
+// included here, so they remain fully visible regardless of cross-section settings.
+function updateClipping() {
+    const planes = getActiveClipPlanes();
+    for (const sphere of spheres) {
+        const u = sphere.userData;
+        if (u.baseMaterial) {
+            u.baseMaterial.clippingPlanes = planes;
+            u.baseMaterial.needsUpdate = true;
+        }
+        if (u.wireframeMaterial) {
+            u.wireframeMaterial.clippingPlanes = planes;
+            u.wireframeMaterial.needsUpdate = true;
+        }
+    }
 }
 
 // Note: Extras panel is now integrated into the side panel, no separate collapse handler needed
