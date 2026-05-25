@@ -8,6 +8,16 @@ let mediaRecorder = null;
 let recordedChunks = [];
 let isRecording = false;
 
+// Saved renderer state, restored when recording stops
+let savedPixelRatio = null;
+
+// Recording quality boost: how many physical pixels per CSS pixel to render
+// during recording. Higher = sharper but more GPU load. 2 doubles the linear
+// resolution (4x total pixels), which is the sweet spot for sharpness on most
+// displays without tanking the framerate. Will be clamped to the display's
+// native devicePixelRatio if that is higher.
+const RECORDING_PIXEL_RATIO = 2;
+
 // Initialize screen recording functionality
 window.addEventListener('DOMContentLoaded', () => {
     const recordScreenBtn = document.getElementById('recordScreenBtn');
@@ -28,7 +38,19 @@ async function toggleRecording() {
         try {
             // Get the canvas element from the renderer
             const canvas = renderer.domElement;
-            
+
+            // Temporarily boost the renderer's pixel ratio so the canvas backing
+            // store is rendered at higher resolution. captureStream() reads the
+            // backing-store pixels directly, so this produces a noticeably sharper
+            // recording without changing what the user sees on screen (CSS size
+            // is preserved by re-calling setSize with the same logical size).
+            savedPixelRatio = renderer.getPixelRatio();
+            const targetRatio = Math.max(savedPixelRatio, Math.min(window.devicePixelRatio || 1, RECORDING_PIXEL_RATIO));
+            renderer.setPixelRatio(targetRatio);
+            renderer.setSize(window.innerWidth, window.innerHeight, true); // updateStyle=true keeps CSS size
+            console.log(`Recording pixel ratio: ${savedPixelRatio} → ${targetRatio} ` +
+                        `(backing store: ${canvas.width}x${canvas.height})`);
+
             // Create a stream from the canvas with maximum FPS for legjobb minőség
             const stream = canvas.captureStream(60); // 60 FPS a jobb minőségért
             
@@ -50,10 +72,12 @@ async function toggleRecording() {
                 }
             }
             
-            // Opciók beállítása a MediaRecorder számára a legjobb minőséghez
+            // Opciók beállítása a MediaRecorder számára a legjobb minőséghez.
+            // 16 Mbps a megnövelt felbontáshoz illeszkedik (4x annyi pixel
+            // -> kétszer akkora bitráta kell az ugyanolyan tisztaságért).
             const options = {
-                videoBitsPerSecond: 8000000, // 8 Mbps - jelentősen magasabb bitráta a jobb minőségért
-                audioBitsPerSecond: 128000   // 128 kbps audio (ha van hang)
+                videoBitsPerSecond: 16000000, // 16 Mbps - magas felbontású felvételhez
+                audioBitsPerSecond: 128000    // 128 kbps audio (ha van hang)
             };
             
             // Ha találtunk támogatott formátumot, adjuk hozzá az opciókhoz
@@ -86,12 +110,28 @@ async function toggleRecording() {
         } catch (error) {
             console.error('Error starting screen recording:', error);
             alert('Hiba történt a képernyőfelvétel indításakor: ' + error.message);
+            // Restore the original pixel ratio on failure so the renderer
+            // does not stay stuck at the higher recording resolution.
+            if (savedPixelRatio !== null) {
+                renderer.setPixelRatio(savedPixelRatio);
+                renderer.setSize(window.innerWidth, window.innerHeight, true);
+                savedPixelRatio = null;
+            }
         }
     } else {
         // Stop recording
         if (mediaRecorder && mediaRecorder.state !== 'inactive') {
             mediaRecorder.stop();
-            
+
+            // Restore the renderer's original pixel ratio so on-screen rendering
+            // returns to its pre-recording cost.
+            if (savedPixelRatio !== null) {
+                renderer.setPixelRatio(savedPixelRatio);
+                renderer.setSize(window.innerWidth, window.innerHeight, true);
+                console.log(`Recording pixel ratio restored to ${savedPixelRatio}`);
+                savedPixelRatio = null;
+            }
+
             // Reset button text and state
             recordScreenBtn.textContent = 'Képernyővideó';
             recordScreenBtn.classList.remove('recording');

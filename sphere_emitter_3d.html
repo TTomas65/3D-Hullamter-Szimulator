@@ -782,22 +782,99 @@
             color: white;
         }
 
+        /* ----- Free-15 modal (15 freely configurable source points) ----- */
+        #free15Modal .fire-modal-content {
+            min-width: 780px;
+            max-width: 940px;
+            max-height: 90vh;
+            overflow: auto;
+        }
+        #free15Modal h3 { color: #fbbf24; }
+        .free15-presets {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin: 4px 0 14px;
+            flex-wrap: wrap;
+            padding: 10px;
+            border: 1px solid #1f2937;
+            border-radius: 8px;
+            background: #0b1220;
+        }
+        .free15-presets label {
+            color: #e5e7eb;
+            font-weight: 600;
+            font-size: 13px;
+        }
+        .free15-presets select,
+        .free15-presets input[type="text"] {
+            background: #0f172a;
+            color: #f3f4f6;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 4px 8px;
+            font-size: 13px;
+        }
+        .free15-presets select { min-width: 160px; }
+        .free15-presets input[type="text"] { width: 160px; }
+        #free15Table {
+            width: 100%;
+            border-collapse: collapse;
+            margin: 4px 0 12px;
+            font-size: 12px;
+        }
+        #free15Table th,
+        #free15Table td {
+            padding: 5px 6px;
+            border-bottom: 1px solid #1f2937;
+            text-align: left;
+            white-space: nowrap;
+        }
+        #free15Table th {
+            color: #93c5fd;
+            font-weight: 600;
+            background: #0b1220;
+            position: sticky;
+            top: 0;
+        }
+        #free15Table input[type="number"] {
+            width: 62px;
+            background: #0f172a;
+            color: #f3f4f6;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 3px 6px;
+            font-size: 12px;
+        }
+        #free15Table select {
+            background: #0f172a;
+            color: #f3f4f6;
+            border: 1px solid #374151;
+            border-radius: 6px;
+            padding: 3px 6px;
+            font-size: 12px;
+        }
+        #free15Table tr.disabled-row td:not(:nth-child(1)):not(:nth-child(2)) {
+            opacity: 0.4;
+        }
+        #free15Table tr.role-water .free15-fire-only { visibility: hidden; }
+
 </style>
 </head>
 <body>
-    <!-- 3x3 Grid Selection Panel -->
+    <!-- Selection Panel (shared by 3x3 grid and tetrahedron modes) -->
     <div id="grid3x3Panel">
-        <h3>🎯 3x3-as Térrács Kiválasztás</h3>
+        <h3 id="grid3x3PanelTitle">🎯 3x3-as Térrács Kiválasztás</h3>
         <div class="instructions-text">
             <strong>Utasítások:</strong><br>
-            1. A 3D térben megjelent egy 3×3×3-as kockaháló 27 ponttal.<br>
+            1. <span id="grid3x3PanelIntro">A 3D térben megjelent egy 3×3×3-as kockaháló 27 ponttal.</span><br>
             2. <strong>1× kattintás</strong> → <span style="color:#ffd700">●</span> Sárga (vízelem) = álló forráspont<br>
             3. <strong>2× kattintás</strong> → <span style="color:#ff0000">●</span> Piros (tűzelem) = mozgó forráspont (felugró ablak a sebesség és irány beállításához)<br>
             4. <strong>3× kattintás</strong> → <span style="color:#666">●</span> Szürke = visszavonás<br>
             5. <strong>Jobb klikk piros ponton</strong> → tűzelem paramétereinek szerkesztése<br>
             6. Ha kész, nyomd meg az <strong>Indítás</strong> gombot!
         </div>
-        <div class="selected-count">Kiválasztott pontok: <span id="selectedPointCount">0</span> / 27</div>
+        <div class="selected-count">Kiválasztott pontok: <span id="selectedPointCount">0</span> / <span id="selectedPointMax">27</span></div>
         <button id="grid3x3StartBtn" disabled>Indítás (válassz legalább 1 pontot)</button>
     </div>
 
@@ -836,6 +913,55 @@
         </div>
     </div>
 
+    <!-- Free-15 source point configuration modal -->
+    <div id="free15Modal" class="fire-modal" style="display:none;">
+        <div class="fire-modal-backdrop"></div>
+        <div class="fire-modal-content">
+            <h3>🎛️ 15 forráspont tetszőleges beállítása</h3>
+            <div class="free15-presets">
+                <label>Beállítás-csomag:</label>
+                <select id="free15PresetSelect"><option value="">— válassz —</option></select>
+                <button id="free15LoadBtn" class="fire-modal-btn fire-modal-cancel">Betölt</button>
+                <button id="free15DeleteBtn" class="fire-modal-btn fire-modal-remove">Töröl</button>
+                <span style="margin-left:14px;"></span>
+                <input id="free15PresetName" type="text" placeholder="Új csomag neve…" maxlength="40">
+                <button id="free15SaveBtn" class="fire-modal-btn fire-modal-ok">Ment</button>
+            </div>
+            <div class="free15-presets" style="margin-top:0;border-top:none;">
+                <label>Fájl:</label>
+                <button id="free15ExportBtn" class="fire-modal-btn" style="background:linear-gradient(135deg,#3b82f6 0%,#1d4ed8 100%);color:white;">⬇ Exportálás</button>
+                <button id="free15ImportBtn" class="fire-modal-btn" style="background:linear-gradient(135deg,#8b5cf6 0%,#6d28d9 100%);color:white;">⬆ Importálás</button>
+                <input type="file" id="free15ImportFile" accept=".json,.wave15" style="display:none;">
+                <span id="free15FileStatus" style="font-size:12px;color:#9ca3af;margin-left:8px;"></span>
+            </div>
+            <div style="font-size:12px;color:#9ca3af;margin-bottom:6px;">
+                Sárga = vízelem (álló), piros = tűzelem (mozgó). Csak az „Aktív" oszlopban bejelölt sorok lesznek forráspontok.
+                A tűzelem irányvektort a rendszer normálja indításkor (nem kell egységnyi hosszúság).
+            </div>
+            <table id="free15Table">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Aktív</th>
+                        <th>Pozíció X</th>
+                        <th>Pozíció Y</th>
+                        <th>Pozíció Z</th>
+                        <th>Szerep</th>
+                        <th class="free15-fire-only">Sebesség</th>
+                        <th class="free15-fire-only">Irány X</th>
+                        <th class="free15-fire-only">Irány Y</th>
+                        <th class="free15-fire-only">Irány Z</th>
+                    </tr>
+                </thead>
+                <tbody id="free15Tbody"></tbody>
+            </table>
+            <div class="fire-modal-buttons">
+                <button id="free15StartBtn" class="fire-modal-btn fire-modal-ok">Indítás</button>
+                <button id="free15CancelBtn" class="fire-modal-btn fire-modal-cancel">Mégse</button>
+            </div>
+        </div>
+    </div>
+
     <div id="container">
         <div id="version">
             <div id="velocity-container" class="version-container velocity-multi">
@@ -846,7 +972,7 @@
             </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.54</span>
+                <span class="version-number">v1.56</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -950,11 +1076,13 @@
                 <label for="movementType">Mozgástípusok</label>
                 <select id="movementType">
                     <option value="water">Vízelem</option>
-                    <option value="grid3x3">3x3-as térrács elrendezés</option>
                     <option value="fire">Tűzelem</option>
                     <option value="circular">Körmozgás</option>
                     <option value="spiral">Spirális mozgás</option>
                     <option value="dual">Két forráspont kiáradása</option>
+                    <option value="tetrahedron">Egyenlő oldalú tetraéder csúcspontjai</option>
+                    <option value="grid3x3">3x3-as térrács elrendezés</option>
+                    <option value="free15">15 forráspont tetszőleges beállítási lehetősége</option>
                 </select>
             </div>
             
@@ -1506,11 +1634,76 @@ class WaveEmitter {
                 }
             }
             
-            // Panel megjelenítése
+            // Panel megjelenítése (3x3 mode-specific title and intro)
+            document.getElementById('grid3x3PanelTitle').textContent = '🎯 3x3-as Térrács Kiválasztás';
+            document.getElementById('grid3x3PanelIntro').textContent =
+                'A 3D térben megjelent egy 3×3×3-as kockaháló 27 ponttal.';
+            document.getElementById('selectedPointMax').textContent = grid3x3Points.length.toString();
             document.getElementById('grid3x3Panel').style.display = 'block';
             updateSelectedCount();
         }
-        
+
+        // Equilateral tetrahedron vertex creation. Reuses the same selection
+        // infrastructure as the 3x3 grid (grid3x3Points/Selected/SelectedFire,
+        // toggleGridPoint, fire-point modal, grid3x3StartBtn) so the visual
+        // behaviour and interactions are identical — only the candidate point
+        // set differs (4 vertices instead of 27 grid nodes).
+        function createTetrahedron() {
+            // Reuse the same scale that the 3x3 grid uses for total extent,
+            // so the tetrahedron fits comfortably in the same view volume.
+            // Canonical regular-tetrahedron vertices (±1, ±1, ±1) with an even
+            // count of minus signs. Edge length = 2*sqrt(2). We multiply by
+            // `radius` to set the overall size.
+            const radius = 1.7;
+            const verts = [
+                new THREE.Vector3( 1,  1,  1),
+                new THREE.Vector3( 1, -1, -1),
+                new THREE.Vector3(-1,  1, -1),
+                new THREE.Vector3(-1, -1,  1)
+            ].map(v => v.multiplyScalar(radius));
+
+            // Remove any previously generated candidate points
+            grid3x3Points.forEach(point => {
+                scene.remove(point);
+                point.geometry.dispose();
+                point.material.dispose();
+            });
+            grid3x3Points = [];
+            grid3x3Selected = [];
+            grid3x3SelectedFire = [];
+            grid3x3Started = false;
+
+            // Hide the default emitter so it does not interfere with selection
+            emitterPoint.position.set(1000, 1000, 1000);
+            emitterPoint.visible = false;
+
+            verts.forEach(v => {
+                const geometry = new THREE.SphereGeometry(0.08, 16, 16);
+                const material = new THREE.MeshPhongMaterial({
+                    color: 0x444444,
+                    shininess: 60,
+                    specular: 0x222222
+                });
+                const point = new THREE.Mesh(geometry, material);
+                point.position.copy(v);
+                point.userData = {
+                    gridIndex: grid3x3Points.length,
+                    selectionState: 'none',
+                    originalColor: 0x444444
+                };
+                scene.add(point);
+                grid3x3Points.push(point);
+            });
+
+            // Panel megjelenítése (tetraéder-mode címmel és bevezetővel)
+            document.getElementById('grid3x3PanelTitle').textContent = '🎯 Tetraéder Csúcspontok Kiválasztása';
+            document.getElementById('grid3x3PanelIntro').textContent =
+                'A 3D térben megjelent egy szabályos tetraéder 4 csúcspontja.';
+            document.getElementById('selectedPointMax').textContent = grid3x3Points.length.toString();
+            document.getElementById('grid3x3Panel').style.display = 'block';
+            updateSelectedCount();
+        }
+
         // 3x3-as térrács törlése
         function clearGrid3x3() {
             grid3x3Points.forEach(point => {
@@ -1864,6 +2057,378 @@ class WaveEmitter {
             });
         }
         
+        // ========================================================================
+        // Free-15 mode: 15 freely configurable source points with save/load presets
+        // ========================================================================
+        // Each entry: { enabled, x, y, z, role: 'water'|'fire', speed, dirX, dirY, dirZ }
+        // Reuses the existing grid3x3SavedWater/grid3x3SavedFire/grid3x3Emitters
+        // infrastructure on simulation start, so Reset/Újrakezd works automatically.
+        const FREE15_COUNT = 15;
+        const FREE15_LS_KEY = 'wave3d_free15_presets_v1';
+        let free15Config = null;       // current working config (array of 15 entries)
+        let free15Started = false;     // simulation currently running from free15
+
+        function defaultFree15Config() {
+            // Spread the 15 default positions on a Fibonacci-style sphere (radius 2)
+            // so that an empty / first-time user already sees a reasonable layout.
+            const cfg = [];
+            const R = 2.0;
+            const goldenAngle = Math.PI * (3 - Math.sqrt(5));
+            for (let i = 0; i < FREE15_COUNT; i++) {
+                const t = (i + 0.5) / FREE15_COUNT;
+                const y = 1 - 2 * t;                  // y in (-1,1)
+                const r = Math.sqrt(Math.max(0, 1 - y * y));
+                const phi = i * goldenAngle;
+                const x = r * Math.cos(phi);
+                const z = r * Math.sin(phi);
+                cfg.push({
+                    enabled: false,
+                    x: +(R * x).toFixed(2),
+                    y: +(R * y).toFixed(2),
+                    z: +(R * z).toFixed(2),
+                    role: 'water',
+                    speed: 2.0,
+                    // Default direction points toward the origin (centre)
+                    dirX: -x, dirY: -y, dirZ: -z
+                });
+            }
+            return cfg;
+        }
+
+        function free15LoadPresets() {
+            try {
+                const raw = localStorage.getItem(FREE15_LS_KEY);
+                if (!raw) return {};
+                const obj = JSON.parse(raw);
+                return (obj && typeof obj === 'object') ? obj : {};
+            } catch (e) {
+                console.warn('Free15: failed to read presets', e);
+                return {};
+            }
+        }
+
+        function free15SavePresets(presets) {
+            try {
+                localStorage.setItem(FREE15_LS_KEY, JSON.stringify(presets));
+            } catch (e) {
+                console.warn('Free15: failed to save presets', e);
+            }
+        }
+
+        function free15RefreshPresetSelect(selectName) {
+            const sel = document.getElementById('free15PresetSelect');
+            if (!sel) return;
+            const presets = free15LoadPresets();
+            const names = Object.keys(presets).sort((a, b) => a.localeCompare(b, 'hu'));
+            sel.innerHTML = '<option value="">— válassz —</option>' +
+                names.map(n => `<option value="${n.replace(/"/g, '&quot;')}">${n}</option>`).join('');
+            if (selectName && names.includes(selectName)) sel.value = selectName;
+        }
+
+        // Build the configuration table rows from free15Config
+        function free15RenderTable() {
+            const tbody = document.getElementById('free15Tbody');
+            if (!tbody) return;
+            tbody.innerHTML = '';
+            free15Config.forEach((row, i) => {
+                const tr = document.createElement('tr');
+                tr.dataset.index = i;
+                tr.className = (row.enabled ? '' : 'disabled-row ') + 'role-' + row.role;
+                tr.innerHTML = `
+                    <td>${i + 1}</td>
+                    <td><input type="checkbox" class="f15-enabled" ${row.enabled ? 'checked' : ''}></td>
+                    <td><input type="number" class="f15-x" step="0.1" value="${row.x}"></td>
+                    <td><input type="number" class="f15-y" step="0.1" value="${row.y}"></td>
+                    <td><input type="number" class="f15-z" step="0.1" value="${row.z}"></td>
+                    <td>
+                        <select class="f15-role">
+                            <option value="water" ${row.role === 'water' ? 'selected' : ''}>Vízelem</option>
+                            <option value="fire" ${row.role === 'fire' ? 'selected' : ''}>Tűzelem</option>
+                        </select>
+                    </td>
+                    <td class="free15-fire-only"><input type="number" class="f15-speed" step="0.1" min="0" value="${row.speed}"></td>
+                    <td class="free15-fire-only"><input type="number" class="f15-dx" step="0.1" value="${(+row.dirX).toFixed(2)}"></td>
+                    <td class="free15-fire-only"><input type="number" class="f15-dy" step="0.1" value="${(+row.dirY).toFixed(2)}"></td>
+                    <td class="free15-fire-only"><input type="number" class="f15-dz" step="0.1" value="${(+row.dirZ).toFixed(2)}"></td>
+                `;
+                tbody.appendChild(tr);
+            });
+            free15WireRowEvents();
+        }
+
+        // Push DOM input values back into free15Config (called before save/start)
+        function free15CollectFromDOM() {
+            const tbody = document.getElementById('free15Tbody');
+            if (!tbody) return;
+            const rows = tbody.querySelectorAll('tr');
+            rows.forEach(tr => {
+                const i = parseInt(tr.dataset.index, 10);
+                if (isNaN(i) || !free15Config[i]) return;
+                const r = free15Config[i];
+                r.enabled = tr.querySelector('.f15-enabled').checked;
+                r.x = parseFloat(tr.querySelector('.f15-x').value) || 0;
+                r.y = parseFloat(tr.querySelector('.f15-y').value) || 0;
+                r.z = parseFloat(tr.querySelector('.f15-z').value) || 0;
+                r.role = tr.querySelector('.f15-role').value;
+                r.speed = parseFloat(tr.querySelector('.f15-speed').value);
+                if (!isFinite(r.speed) || r.speed < 0) r.speed = 2.0;
+                r.dirX = parseFloat(tr.querySelector('.f15-dx').value) || 0;
+                r.dirY = parseFloat(tr.querySelector('.f15-dy').value) || 0;
+                r.dirZ = parseFloat(tr.querySelector('.f15-dz').value) || 0;
+            });
+        }
+
+        function free15WireRowEvents() {
+            const tbody = document.getElementById('free15Tbody');
+            if (!tbody) return;
+            tbody.querySelectorAll('tr').forEach(tr => {
+                const enabledCb = tr.querySelector('.f15-enabled');
+                const roleSel = tr.querySelector('.f15-role');
+                enabledCb.addEventListener('change', () => {
+                    tr.classList.toggle('disabled-row', !enabledCb.checked);
+                });
+                roleSel.addEventListener('change', () => {
+                    tr.classList.remove('role-water', 'role-fire');
+                    tr.classList.add('role-' + roleSel.value);
+                });
+            });
+        }
+
+        function openFree15Modal() {
+            if (!free15Config) free15Config = defaultFree15Config();
+            free15RenderTable();
+            free15RefreshPresetSelect();
+            document.getElementById('free15PresetName').value = '';
+            document.getElementById('free15Modal').style.display = 'flex';
+        }
+
+        function closeFree15Modal() {
+            document.getElementById('free15Modal').style.display = 'none';
+        }
+
+        // Take the current free15Config and start a simulation, reusing the
+        // grid3x3SavedWater / grid3x3SavedFire pipeline (createGrid3x3SourcePoints).
+        function applyFree15AndStart() {
+            free15CollectFromDOM();
+            const active = free15Config.filter(r => r.enabled);
+            if (active.length === 0) {
+                alert('Legalább egy forráspontot aktiválj!');
+                return false;
+            }
+
+            // Tear down any previous grid3x3/tetrahedron/free15 emitters
+            grid3x3Emitters.forEach(emitter => {
+                if (emitter.mesh) {
+                    scene.remove(emitter.mesh);
+                    emitter.mesh.geometry.dispose();
+                    emitter.mesh.material.dispose();
+                }
+                const idx = emitters.indexOf(emitter);
+                if (idx > -1) emitters.splice(idx, 1);
+            });
+            grid3x3Emitters = [];
+            // Also remove any leftover candidate selection points
+            grid3x3Points.forEach(p => {
+                scene.remove(p);
+                p.geometry.dispose();
+                p.material.dispose();
+            });
+            grid3x3Points = [];
+
+            // Populate the saved-config arrays from active rows
+            grid3x3SavedWater = [];
+            grid3x3SavedFire = [];
+            active.forEach(r => {
+                const pos = new THREE.Vector3(r.x, r.y, r.z);
+                if (r.role === 'water') {
+                    grid3x3SavedWater.push(pos);
+                } else {
+                    let dir = new THREE.Vector3(r.dirX, r.dirY, r.dirZ);
+                    if (dir.lengthSq() < 1e-12) {
+                        // Fallback: aim at the scene centre
+                        dir = new THREE.Vector3().subVectors(grid3x3Center, pos);
+                        if (dir.lengthSq() < 1e-12) dir.set(1, 0, 0);
+                    }
+                    dir.normalize();
+                    grid3x3SavedFire.push({
+                        pos: pos,
+                        speed: r.speed,
+                        direction: dir,
+                        dirMode: 'manual'
+                    });
+                }
+            });
+            grid3x3HasSavedConfig = true;
+            grid3x3Selected = grid3x3SavedWater.map(p => p.clone());
+            grid3x3SelectedFire = grid3x3SavedFire.map(e => ({
+                pos: e.pos.clone(), speed: e.speed,
+                direction: e.direction.clone(), dirMode: e.dirMode
+            }));
+
+            // Activate the same runtime state grid3x3 mode uses
+            grid3x3Mode = true;
+            grid3x3Started = true;
+            free15Started = true;
+
+            // Hide the original emitter point and the selection panel
+            emitterPoint.visible = false;
+            emitterPoint.position.set(1000, 1000, 1000);
+            const panel = document.getElementById('grid3x3Panel');
+            if (panel) panel.style.display = 'none';
+
+            createGrid3x3SourcePoints();
+            console.log(`Free15: started with ${grid3x3SavedWater.length} water + ${grid3x3SavedFire.length} fire source points`);
+            return true;
+        }
+
+        // Wire up modal events (deferred so DOM exists)
+        (function wireFree15Modal() {
+            const startBtn = document.getElementById('free15StartBtn');
+            const cancelBtn = document.getElementById('free15CancelBtn');
+            const saveBtn = document.getElementById('free15SaveBtn');
+            const loadBtn = document.getElementById('free15LoadBtn');
+            const deleteBtn = document.getElementById('free15DeleteBtn');
+            const sel = document.getElementById('free15PresetSelect');
+            if (!startBtn || !cancelBtn || !saveBtn || !loadBtn || !deleteBtn || !sel) return;
+
+            startBtn.addEventListener('click', () => {
+                if (applyFree15AndStart()) closeFree15Modal();
+            });
+
+            cancelBtn.addEventListener('click', () => {
+                closeFree15Modal();
+                // If the user cancels and no simulation is running, fall back to water mode
+                if (!free15Started) {
+                    const sel2 = document.getElementById('movementType');
+                    if (sel2 && sel2.value === 'free15') {
+                        sel2.value = 'water';
+                        sel2.dispatchEvent(new Event('change'));
+                    }
+                }
+            });
+
+            saveBtn.addEventListener('click', () => {
+                const nameInput = document.getElementById('free15PresetName');
+                const name = (nameInput.value || '').trim();
+                if (!name) {
+                    alert('Adj meg egy nevet a beállítás-csomagnak!');
+                    return;
+                }
+                free15CollectFromDOM();
+                const presets = free15LoadPresets();
+                if (presets[name] && !confirm(`„${name}" már létezik. Felülírjam?`)) return;
+                // Deep clone so later edits don't mutate the saved entry
+                presets[name] = JSON.parse(JSON.stringify(free15Config));
+                free15SavePresets(presets);
+                free15RefreshPresetSelect(name);
+                nameInput.value = '';
+            });
+
+            loadBtn.addEventListener('click', () => {
+                const name = sel.value;
+                if (!name) { alert('Válassz egy mentett csomagot!'); return; }
+                const presets = free15LoadPresets();
+                const data = presets[name];
+                if (!Array.isArray(data) || data.length !== FREE15_COUNT) {
+                    alert('A kiválasztott csomag sérült vagy nem 15 sort tartalmaz.');
+                    return;
+                }
+                free15Config = JSON.parse(JSON.stringify(data));
+                free15RenderTable();
+            });
+
+            deleteBtn.addEventListener('click', () => {
+                const name = sel.value;
+                if (!name) { alert('Válassz egy mentett csomagot a törléshez!'); return; }
+                if (!confirm(`Biztosan törlöd a(z) „${name}" csomagot?`)) return;
+                const presets = free15LoadPresets();
+                delete presets[name];
+                free15SavePresets(presets);
+                free15RefreshPresetSelect();
+            });
+
+            // --- Export / Import to/from file ---
+            const exportBtn = document.getElementById('free15ExportBtn');
+            const importBtn = document.getElementById('free15ImportBtn');
+            const importFile = document.getElementById('free15ImportFile');
+            const fileStatus = document.getElementById('free15FileStatus');
+
+            exportBtn.addEventListener('click', () => {
+                free15CollectFromDOM();
+                const payload = {
+                    format: 'wave3d_free15',
+                    version: 1,
+                    exported: new Date().toISOString(),
+                    config: free15Config
+                };
+                const json = JSON.stringify(payload, null, 2);
+                const blob = new Blob([json], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                a.download = `free15_config_${timestamp}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+                if (fileStatus) fileStatus.textContent = '✓ Exportálva!';
+                setTimeout(() => { if (fileStatus) fileStatus.textContent = ''; }, 3000);
+            });
+
+            importBtn.addEventListener('click', () => {
+                importFile.value = '';
+                importFile.click();
+            });
+
+            importFile.addEventListener('change', (e) => {
+                const file = e.target.files && e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
+                    try {
+                        const text = ev.target.result;
+                        const obj = JSON.parse(text);
+                        // Validate structure
+                        if (!obj || obj.format !== 'wave3d_free15' || !Array.isArray(obj.config)) {
+                            alert('Érvénytelen fájlformátum! A fájlnak „wave3d_free15" formátumú JSON-nak kell lennie.');
+                            return;
+                        }
+                        if (obj.config.length !== FREE15_COUNT) {
+                            alert(`A fájl ${obj.config.length} sort tartalmaz, de pontosan ${FREE15_COUNT} szükséges.`);
+                            return;
+                        }
+                        // Basic per-row validation
+                        for (let i = 0; i < FREE15_COUNT; i++) {
+                            const r = obj.config[i];
+                            if (typeof r !== 'object' || r === null) {
+                                alert(`Hibás sor #${i + 1} a fájlban.`);
+                                return;
+                            }
+                            // Ensure essential fields exist with defaults
+                            r.enabled = !!r.enabled;
+                            r.x = parseFloat(r.x) || 0;
+                            r.y = parseFloat(r.y) || 0;
+                            r.z = parseFloat(r.z) || 0;
+                            r.role = (r.role === 'fire') ? 'fire' : 'water';
+                            r.speed = parseFloat(r.speed);
+                            if (!isFinite(r.speed) || r.speed < 0) r.speed = 2.0;
+                            r.dirX = parseFloat(r.dirX) || 0;
+                            r.dirY = parseFloat(r.dirY) || 0;
+                            r.dirZ = parseFloat(r.dirZ) || 0;
+                        }
+                        free15Config = obj.config;
+                        free15RenderTable();
+                        if (fileStatus) fileStatus.textContent = `✓ Importálva: ${file.name}`;
+                        setTimeout(() => { if (fileStatus) fileStatus.textContent = ''; }, 4000);
+                    } catch (err) {
+                        alert('Nem sikerült beolvasni a fájlt! Ellenőrizd, hogy érvényes JSON-e.\n\n' + err.message);
+                    }
+                };
+                reader.readAsText(file);
+            });
+        })();
+
         // Raycaster a 3x3-as térrács pontok kattintásához
         const grid3x3Raycaster = new THREE.Raycaster();
         
@@ -2073,16 +2638,89 @@ class WaveEmitter {
                     emitters[0].physics_velocity.set(0, 0, 0);
                 }
                 console.log('Movement type changed to:', movementType, 'New Multipliers X:', currentXMultiplier, 'Y:', currentYMultiplier);
-                emitterPoint.visible = (movementType !== 'water' && movementType !== 'grid3x3');
+                emitterPoint.visible = (movementType !== 'water' && movementType !== 'grid3x3' && movementType !== 'tetrahedron' && movementType !== 'free15');
 
-// 3x3-as térrács mód kezelése
-if (movementType === 'grid3x3') {
+// Free-15 mód: a többitől eltérően nincs interaktív kiválasztás a 3D térben,
+// hanem rögtön egy felugró modálban konfigurálható mind a 15 forráspont.
+// A leállítás/áttörlés ugyanúgy a grid3x3* változókkal zajlik, így a Reset
+// (Újrakezd) automatikusan visszaállítja a mentett konfigurációt.
+if (movementType === 'free15') {
+    // Reset any previous run/grid candidate set
+    grid3x3SavedWater = [];
+    grid3x3SavedFire = [];
+    grid3x3HasSavedConfig = false;
+    free15Started = false;
+    grid3x3Emitters.forEach(emitter => {
+        if (emitter.mesh) {
+            scene.remove(emitter.mesh);
+            emitter.mesh.geometry.dispose();
+            emitter.mesh.material.dispose();
+        }
+        const idx = emitters.indexOf(emitter);
+        if (idx > -1) emitters.splice(idx, 1);
+    });
+    grid3x3Emitters = [];
+    if (grid3x3Mode || grid3x3Points.length > 0) clearGrid3x3();
+
+    // Clear previous scene: remove all wave spheres
+    spheres.forEach(sphere => {
+        scene.remove(sphere);
+        if (sphere.userData.baseMaterial) sphere.userData.baseMaterial.dispose();
+        if (sphere.userData.wireframeMaterial) sphere.userData.wireframeMaterial.dispose();
+    });
+    spheres.length = 0;
+
+    // Clear timeline markers and lines
+    timelineMarkers.forEach(m => { if (m.parent) scene.remove(m); if (m.geometry) m.geometry.dispose(); if (m.material) m.material.dispose(); });
+    timelineLines.forEach(l => { if (l.parent) scene.remove(l); if (l.geometry) l.geometry.dispose(); if (l.material) l.material.dispose(); });
+    timelinePoints = [];
+    timelineMarkers = [];
+    timelineLines = [];
+
+    // Remove secondary emitter if it exists (from dual mode)
+    if (emitterPoint2) {
+        scene.remove(emitterPoint2);
+        emitterPoint2.geometry.dispose();
+        emitterPoint2.material.dispose();
+        emitterPoint2 = null;
+        if (secondaryEmitter) {
+            const idx2 = emitters.indexOf(secondaryEmitter);
+            if (idx2 > -1) emitters.splice(idx2, 1);
+            secondaryEmitter = null;
+        }
+    }
+
+    // Reset the main emitter and stop all emission
+    emitters.forEach(emitter => {
+        emitter.physics_velocity.set(0, 0, 0);
+        emitter.spheres.forEach(s => { scene.remove(s); });
+        emitter.spheres = [];
+    });
+
+    // Move and hide the original source point so it can't emit new spheres
+    emitterPoint.visible = false;
+    emitterPoint.position.set(1000, 1000, 1000);
+
+    // Set grid3x3Mode=true so the animation loop skips the emission block
+    // (the loop checks: !(grid3x3Mode && !grid3x3Started) — with both true
+    // this evaluates to false, preventing any new sphere creation)
+    grid3x3Mode = true;
+    grid3x3Started = false;
+
+    openFree15Modal();
+    // Skip the grid3x3/tetrahedron/dual branches below
+}
+
+// 3x3-as térrács vagy tetraéder mód kezelése: mindkettő ugyanazokat a változókat
+// és kiválasztó UI-t használja (grid3x3Points/Selected/SelectedFire), csak a
+// generált forrás-jelölt készlet különbözik.
+if (movementType === 'grid3x3' || movementType === 'tetrahedron') {
     // Töröljük az előző mentett konfigurációt - új kiválasztás kezdődik
     grid3x3SavedWater = [];
     grid3x3SavedFire = [];
     grid3x3HasSavedConfig = false;
-    
-    // Töröljük a korábbi térrács emittereket
+
+    // Töröljük a korábbi térrács/tetraéder emittereket
     grid3x3Emitters.forEach(emitter => {
         if (emitter.mesh) {
             scene.remove(emitter.mesh);
@@ -2095,11 +2733,15 @@ if (movementType === 'grid3x3') {
         }
     });
     grid3x3Emitters = [];
-    
+
     // Beállítjuk a módot ELŐBB
     grid3x3Mode = true;
-    // Létrehozzuk az új térrácsot (ez törli a korábbi pontokat is)
-    createGrid3x3();
+    // Pontkészlet létrehozása a választott típusnak megfelelően
+    if (movementType === 'grid3x3') {
+        createGrid3x3();
+    } else {
+        createTetrahedron();
+    }
     // Elrejtjük az eredeti forráspontot
     emitterPoint.visible = false;
 } else {
@@ -2958,8 +3600,8 @@ if (emitter.timeline) {
                 emitter.resync();
             });
             
-            // Biztosítjuk, hogy a forráspont látható legyen (kivéve grid3x3 módban)
-            if (emitterPoint && movementType !== 'grid3x3') {
+            // Biztosítjuk, hogy a forráspont látható legyen (kivéve grid3x3/tetrahedron/free15 módban)
+            if (emitterPoint && movementType !== 'grid3x3' && movementType !== 'tetrahedron' && movementType !== 'free15') {
                 emitterPoint.visible = true;
                 // Frissítjük a forráspont anyagát, hogy biztosan látható legyen
                 if (emitterPoint.material) {
@@ -2978,9 +3620,9 @@ if (emitter.timeline) {
             circleAngle = 0;
             spiralHeight = 0;
             
-            // 3x3-as térrács kezelése az Újrakezd gombnál
-            if (grid3x3HasSavedConfig && movementType === 'grid3x3') {
-                // Van elmentett konfiguráció és grid3x3 módban vagyunk
+            // 3x3-as térrács / tetraéder / free15 kezelése az Újrakezd gombnál
+            if (grid3x3HasSavedConfig && (movementType === 'grid3x3' || movementType === 'tetrahedron' || movementType === 'free15')) {
+                // Van elmentett konfiguráció és grid3x3/tetraéder/free15 módban vagyunk
                 // Töröljük a jelenlegi emittereket és gömböket
                 grid3x3Emitters.forEach(emitter => {
                     if (emitter.mesh) {
@@ -3217,8 +3859,12 @@ if (emitter.timeline) {
             // Display the instantaneous speed of every active emitter, numbered.
             // Speed is derived from the actual displacement during this frame and
             // normalized to PHYSICS_UNIT_SPEED (so "1.000" == wave expansion speed).
+            // While paused, freeze the velocity display at its last shown value so
+            // the user can read off the speed at the moment of pausing instead of
+            // seeing it drop to 0.000 (which would otherwise happen because no
+            // displacement occurs between frames during pause).
             const velocityListEl = document.getElementById('velocity-list');
-            if (velocityListEl && emitters.length > 0) {
+            if (velocityListEl && emitters.length > 0 && !isPaused) {
                 let html = '';
                 for (let i = 0; i < emitters.length; i++) {
                     const e = emitters[i];
@@ -3566,16 +4212,10 @@ clipYSlider.addEventListener('input', () => {
     updateClipping();
 });
 
-// Initial arrow state
-if (extrasPanel.classList.contains('collapsed')) {
-    toggleExtrasBtn.textContent = '';
-        toggleExtrasBtn.textContent = '▼';
-    toggleExtrasBtn.title = 'Panel kinyitása';
-} else {
-    toggleExtrasBtn.textContent = '';
-        toggleExtrasBtn.textContent = '▲';
-    toggleExtrasBtn.title = 'Panel összezárása';
-}
+// NOTE: Previously this block referenced `extrasPanel` and `toggleExtrasBtn`,
+// which are no longer present in the DOM (the Extras section is now part of
+// the unified side panel). The dangling references threw a ReferenceError that
+// aborted later script execution. Block removed.
 
 </script>
 

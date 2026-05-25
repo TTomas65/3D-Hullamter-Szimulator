@@ -5,6 +5,37 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ![Running image](kepek/Kepernyo_04.jpg)
 
 
+## Újdonságok az 1.56-os verzióban (az 1.54-es verzióhoz képest)
+
+**15 forráspont tetszőleges beállítási lehetősége**:
+- Új mozgástípus a legördülő menüben: „15 forráspont tetszőleges beállítási lehetősége".
+- Felugró konfigurációs modál 15 forráspont egyedi beállításához:
+  - Minden pont aktiválható/deaktiválható egyenként.
+  - Pozíció (X, Y, Z) tetszőlegesen megadható.
+  - Szerepkör: vízelem (álló, kék) vagy tűzelem (mozgó, piros).
+  - Tűzelem esetén sebesség és irányvektor beállítható.
+- Alapértelmezett pozíciók Fibonacci-gömb elrendezéssel, sugár = 2.
+- Tűzelem irányvektor automatikusan az origó felé mutat alapértelmezetten.
+
+**Preset (beállítás-csomag) kezelés**:
+- Konfigurációk mentése, betöltése és törlése név alapján (localStorage).
+- A mentett presetek böngésző-szinten megmaradnak az újraindítások között.
+
+**Exportálás / Importálás fájlba**:
+- Az aktuális konfiguráció letölthető JSON fájlként (⬇ Exportálás gomb).
+- Korábban mentett vagy mástól kapott konfiguráció betölthető fájlból (⬆ Importálás gomb).
+- A fájlformátum: `wave3d_free15` JSON, pontosan 15 sor adataival.
+- Importáláskor teljes validálás: formátum, sorok száma, mezőtípusok ellenőrzése.
+- Elfogadott kiterjesztések: `.json`, `.wave15`.
+
+**Színtér-tisztítás free15 módváltáskor**:
+- A „15 forráspont tetszőleges beállítási lehetősége" kiválasztásakor a korábbi szimuláció teljes mértékben törlődik (hullámgömbök, időszál, másodlagos forráspont).
+- A beállító modál megnyitásakor az animációs ciklus kibocsátása leáll — a 3D színtér tisztán várja az új konfigurációt.
+
+**Képernyő- és videómentés javítások**:
+- A képernyőmentés és videórögzítés gombok megjelenítése visszaállítva.
+- A videómentés felbontása megnövelve a jobb minőségű felvétel érdekében.
+
 ## Újdonságok az 1.54-es verzióban (az 1.5-ös verzióhoz képest)
 
 **Per-emitter, per-sphere ütközési állapotkezelés**:
