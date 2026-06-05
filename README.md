@@ -5,6 +5,39 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ![Running image](kepek/Kepernyo_04.jpg)
 
 
+## Újdonságok az 1.57-es verzióban (az 1.56-os verzióhoz képest)
+
+**Tűzelem sebesség mód (Egyenletes / Lassuló)**:
+- Új rádiógomb-pár jelenik meg a tűzelem mozgástípus kiválasztásakor a forráspont sebességcsúszkái alatt.
+- **Egyenletes**: a forráspont a csúszkán beállított sebességgel egyenletesen mozog (korábbi viselkedés).
+- **Lassuló**: a forráspont a beállított sebességgel indul, és minden egyes új kiáradás indításakor **2 egységgel csökkenti a sebességét**, amíg el nem éri a 0-t.
+- A lassulás matematikailag úgy van meghatározva, hogy a leálláskor az összes kiáradó gömbfelület **pontosan érinti egymást** (nem hatolnak egymásba, nincsenek köztük hézagok). Például 6-os kezdeti sebesség esetén a forráspont 3 kiáradást bocsát ki (d₀=4, d₁=2, d₂=0), és a gömbfelületek t=2,5 kiáradási intervallumonként érintik egymást.
+- A csúszka értékének módosításakor és jelenetújraindításkor a lassulás automatikusan visszaáll a kezdeti értékre.
+
+**Forráspont sebesség csúszka tartományának bővítése**:
+- A forrássebesség X és Y csúszkák maximuma **6-ról 20-ra nőtt**, lehetővé téve nagyobb távolságú tűzelem mozgások szimulálását.
+
+**Metszősík forgatás**:
+- Új gombok az X és Y metszősíkok 45°-os lépésekben történő forgatásához.
+- A forgató gombok csak akkor jelennek meg, ha az adott metszősík aktív.
+- A normálvektor forgatása a csúszkás pozícióbeállítással kombinálható.
+
+**Navigációs léptetés felbontása**:
+- Új rádiógomb-csoport az „Időszál megjelenítése" jelölőnégyzet felett.
+- **Normál**: eredeti kamera- és objektumnavigációs érzékenység.
+- **Közepes**: 2× finomabb navigáció (eger, görgő, billentyűzet, kameraforgatás).
+- **Kicsi**: 4× finomabb navigáció — hasznos, ha a kamera nagyon közel van egy objektumhoz és kis lépésekben kell mozogni.
+
+**Képernyőmentés és videórögzítés — sebesség panel beleégetése**:
+- A mentett képernyőkép és a rögzített videó mostantól tartalmazza a jobb felső sarokban megjelenő **„Forráspont Sebessége"** panelt (az összes aktív emitter aktuális sebességével).
+- A composite canvas technológia a Three.js WebGL canvast és a panel szövegét egy 2D canvasra rajzolja össze.
+
+**Videórögzítés felbontás- és minőségjavítás**:
+- A renderer mostantól `preserveDrawingBuffer: true` opcióval és `setPixelRatio(window.devicePixelRatio)` hívással indul, így HiDPI és Windows-skálázásos (pl. 125%) kijelzőkön is **fizikai pixelfelbontáson** rögzít.
+- A composite canvas mérete `window.innerWidth × devicePixelRatio` × `window.innerHeight × devicePixelRatio` (pl. 1920×1080 125%-os skálázásnál, szemben a korábbi 1536×864-gyel).
+- A MediaRecorder bitráta explicit **8 Mbps**-re van állítva a jobb tömörítési minőség érdekében.
+- Ablakméret-változáskor a composite canvas automatikusan újraméreteződik.
+
 ## Újdonságok az 1.56-os verzióban (az 1.54-es verzióhoz képest)
 
 **15 forráspont tetszőleges beállítási lehetősége**:

@@ -972,7 +972,7 @@
             </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.56</span>
+                <span class="version-number">v1.57</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -1056,14 +1056,28 @@
             
             <div class="control-group">
                 <label for="sourceSpeedX">Forráspont sebessége X-tengely</label>
-                <input type="range" id="sourceSpeedX" min="0" max="6" step="0.01" value="1.75">
+                <input type="range" id="sourceSpeedX" min="0" max="20" step="0.01" value="1.75">
                 <div class="value-display" id="sourceSpeedXValue">1.75</div>
             </div>
 
             <div class="control-group">
                 <label for="sourceSpeedY">Forráspont sebessége Y-tengely</label>
-                <input type="range" id="sourceSpeedY" min="0" max="6" step="0.01" value="0">
+                <input type="range" id="sourceSpeedY" min="0" max="20" step="0.01" value="0">
                 <div class="value-display" id="sourceSpeedYValue">0.00</div>
+            </div>
+
+            <div class="control-group" id="fireSpeedModeGroup" style="display:none;">
+                <label style="font-size:12px;color:#94a3b8;margin-bottom:4px;display:block;">Sebesség mód</label>
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <label class="checkbox-container" style="margin:0;">
+                        <input type="radio" name="fireSpeedMode" id="fireSpeedUniform" value="uniform" checked>
+                        <span class="checkbox-label">Egyenletes</span>
+                    </label>
+                    <label class="checkbox-container" style="margin:0;">
+                        <input type="radio" name="fireSpeedMode" id="fireSpeedDecelerating" value="decelerating">
+                        <span class="checkbox-label">Lassuló</span>
+                    </label>
+                </div>
             </div>
 
             <div class="control-group" id="circleRadiusControlGroup" style="display: none;">
@@ -1134,6 +1148,16 @@
                 <input type="range" id="clipYSlider" min="-5" max="5" step="0.1" value="0">
                 <div class="value-display" id="clipYSliderValue">0.0</div>
             </div>
+
+            <!-- Clipping plane rotation buttons -->
+            <div id="clipRotXGroup" class="control-group button-group" style="display:none;">
+                <button id="clipRotXBtn">X metszet forgatása 45°</button>
+                <div class="value-display" id="clipRotXValue">0°</div>
+            </div>
+            <div id="clipRotYGroup" class="control-group button-group" style="display:none;">
+                <button id="clipRotYBtn">Y metszet forgatása 45°</button>
+                <div class="value-display" id="clipRotYValue">0°</div>
+            </div>
             
             <div class="divider"></div>
             <div class="control-group button-group">
@@ -1141,6 +1165,25 @@
                 <button id="recordScreenBtn">Képernyővideó</button>
             </div>
             
+            <div class="divider"></div>
+            <div class="control-group">
+                <label style="font-size:12px;color:#94a3b8;margin-bottom:4px;display:block;">Navigációs léptetés felbontása</label>
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <label class="checkbox-container" style="margin:0;">
+                        <input type="radio" name="navResolution" id="navResNormal" value="1" checked>
+                        <span class="checkbox-label">Normál</span>
+                    </label>
+                    <label class="checkbox-container" style="margin:0;">
+                        <input type="radio" name="navResolution" id="navResMedium" value="0.5">
+                        <span class="checkbox-label">Közepes</span>
+                    </label>
+                    <label class="checkbox-container" style="margin:0;">
+                        <input type="radio" name="navResolution" id="navResSmall" value="0.25">
+                        <span class="checkbox-label">Kicsi</span>
+                    </label>
+                </div>
+            </div>
+
             <div class="divider"></div>
             <div class="control-group">
                 <label class="checkbox-container">
@@ -1216,21 +1259,140 @@
 
     <script src="https://cdn.jsdelivr.net/npm/three@0.128.0/build/three.min.js"></script>
 <script>
-/* ====== Screenshot button ====== */
-window.addEventListener('DOMContentLoaded', () => {
-    const saveScreenshotBtn = document.getElementById('saveScreenshotBtn');
-    if (saveScreenshotBtn && typeof renderer !== 'undefined') {
-        saveScreenshotBtn.addEventListener('click', () => {
-            renderer.render(scene, camera); // ensure latest frame
-            const dataURL = renderer.domElement.toDataURL('image/jpeg');
-            const now = new Date();
-            const fileName = `kepernyomentes_${now.toISOString().slice(0,19).replace(/[:T]/g,'-')}.jpg`;
-            const link = document.createElement('a');
-            link.href = dataURL;
-            link.download = fileName;
-            link.click();
-        });
+/* ====== Composite canvas: Three.js + velocity-panel overlay ====== */
+var compositeCanvas = null;
+var compositeCtx    = null;
+var mediaRecorder   = null;
+var recordedChunks  = [];
+var isRecording     = false;
+
+function ensureCompositeCanvas() {
+    var dpr = window.devicePixelRatio || 1;
+    var targetW = Math.round(window.innerWidth  * dpr);
+    var targetH = Math.round(window.innerHeight * dpr);
+    if (!compositeCanvas ||
+        compositeCanvas.width  !== targetW ||
+        compositeCanvas.height !== targetH) {
+        compositeCanvas = document.createElement('canvas');
+        compositeCanvas.width  = targetW;
+        compositeCanvas.height = targetH;
+        compositeCtx = compositeCanvas.getContext('2d');
     }
+}
+
+function drawCompositeFrame() {
+    ensureCompositeCanvas();
+    var ctx = compositeCtx;
+    var w   = compositeCanvas.width;
+
+    // Base: Three.js WebGL canvas — stretch to full physical resolution
+    ctx.drawImage(renderer.domElement, 0, 0, compositeCanvas.width, compositeCanvas.height);
+
+    // Read velocity rows from the DOM panel
+    var rows = [];
+    document.querySelectorAll('#velocity-list .velocity-row').forEach(function(row) {
+        rows.push({
+            label: (row.querySelector('.velocity-label') || {}).textContent || '',
+            num:   (row.querySelector('.velocity-number') || {}).textContent || ''
+        });
+    });
+
+    // Panel geometry
+    var pad    = 12;
+    var lineH  = 18;
+    var titleH = 22;
+    var panelH = pad + titleH + rows.length * lineH + pad;
+    var panelW = 186;
+    var px = w - panelW - 16;
+    var py = 16;
+    var r  = 8;
+
+    // Rounded-rect background
+    ctx.save();
+    ctx.globalAlpha = 0.88;
+    ctx.fillStyle = '#4f46e5';
+    ctx.beginPath();
+    ctx.moveTo(px + r, py);
+    ctx.lineTo(px + panelW - r, py);
+    ctx.quadraticCurveTo(px + panelW, py, px + panelW, py + r);
+    ctx.lineTo(px + panelW, py + panelH - r);
+    ctx.quadraticCurveTo(px + panelW, py + panelH, px + panelW - r, py + panelH);
+    ctx.lineTo(px + r, py + panelH);
+    ctx.quadraticCurveTo(px, py + panelH, px, py + panelH - r);
+    ctx.lineTo(px, py + r);
+    ctx.quadraticCurveTo(px, py, px + r, py);
+    ctx.closePath();
+    ctx.fill();
+    ctx.globalAlpha = 1.0;
+
+    // Title
+    ctx.fillStyle = '#ffffff';
+    ctx.font = 'bold 13px sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText('Forráspont Sebessége', px + pad, py + pad + 13);
+
+    // Per-emitter speed rows
+    ctx.font = '12px sans-serif';
+    rows.forEach(function(row, i) {
+        var y = py + pad + titleH + i * lineH + 12;
+        ctx.fillStyle = 'rgba(255,255,255,0.92)';
+        ctx.textAlign = 'left';
+        ctx.fillText(row.label, px + pad, y);
+        ctx.textAlign = 'right';
+        ctx.fillText(row.num, px + panelW - pad, y);
+    });
+
+    ctx.restore();
+}
+
+/* ====== Screenshot ====== */
+window.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('saveScreenshotBtn').addEventListener('click', function() {
+        renderer.render(scene, camera);
+        drawCompositeFrame();
+        var dataURL = compositeCanvas.toDataURL('image/jpeg', 0.95);
+        var now  = new Date();
+        var link = document.createElement('a');
+        link.href     = dataURL;
+        link.download = 'kepernyomentes_' + now.toISOString().slice(0,19).replace(/[:T]/g,'-') + '.jpg';
+        link.click();
+    });
+
+    /* ====== Video recording (MediaRecorder) ====== */
+    var recordBtn = document.getElementById('recordScreenBtn');
+    recordBtn.addEventListener('click', function() {
+        if (!isRecording) {
+            ensureCompositeCanvas();
+            var stream   = compositeCanvas.captureStream(30);
+            var mimeType = (typeof MediaRecorder !== 'undefined' &&
+                            MediaRecorder.isTypeSupported('video/webm;codecs=vp9'))
+                           ? 'video/webm;codecs=vp9' : 'video/webm';
+            mediaRecorder  = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 8000000 });
+            recordedChunks = [];
+            mediaRecorder.ondataavailable = function(e) {
+                if (e.data && e.data.size > 0) recordedChunks.push(e.data);
+            };
+            mediaRecorder.onstop = function() {
+                var blob = new Blob(recordedChunks, { type: 'video/webm' });
+                var url  = URL.createObjectURL(blob);
+                var now2 = new Date();
+                var dl   = document.createElement('a');
+                dl.href     = url;
+                dl.download = 'hullamter_video_' + now2.toISOString().slice(0,19).replace(/[:T]/g,'-') + '.webm';
+                dl.click();
+                URL.revokeObjectURL(url);
+            };
+            mediaRecorder.start(100);
+            isRecording = true;
+            recordBtn.textContent = 'Rögzítés leáll';
+            recordBtn.classList.add('recording');
+        } else {
+            mediaRecorder.stop();
+            isRecording = false;
+            recordBtn.textContent = 'Képernyővideó';
+            recordBtn.classList.remove('recording');
+        }
+    });
 });
 
 </script>
@@ -1260,6 +1422,7 @@ class WaveEmitter {
         // The first update() will then set it to the corrected time.
         this.lastEmissionTime = -Infinity;
         this.physics_velocity = new THREE.Vector3(0, 0, 0); // Forráspont fizikai sebessége ütközés miatt
+        this.fireDeceleratingSpeedX = sourceSpeedX; // Current speed units for decelerating fire mode
     }
 
     get position() { return this.mesh.position; }
@@ -1355,6 +1518,21 @@ class WaveEmitter {
         if (now - this.lastEmissionTime >= interval) {
             this.spawnSphere();
             this.lastEmissionTime = now;
+            // Decelerating fire mode: reduce speed by 2 units on each emission.
+            // With step=2, the inter-emission distances form d_k = 2*(N-1-k),
+            // so all adjacent sphere surfaces touch simultaneously at t* = N - 0.5 intervals.
+            if (movementType === 'fire' && fireSpeedMode === 'decelerating') {
+                if (this.fireDeceleratingSpeedX > 0) {
+                    this.fireDeceleratingSpeedX = Math.max(0, this.fireDeceleratingSpeedX - 2);
+                }
+                // Apply updated speed to physics velocity immediately
+                const signX = sourceSpeedX >= 0 ? 1 : -1;
+                this.physics_velocity.set(
+                    this.fireDeceleratingSpeedX * PHYSICS_UNIT_SPEED * signX,
+                    sourceSpeedY * PHYSICS_UNIT_SPEED,
+                    0
+                );
+            }
         }
     }
 
@@ -1536,6 +1714,9 @@ class WaveEmitter {
         
         // Az időszál változók már deklarálva vannak korábban, itt nem kell újra deklarálni őket
         
+        // Navigation resolution factor (1 = normal, 0.5 = medium, 0.25 = fine)
+        let navResolutionFactor = 1.0;
+
         // Kamera követés és forgás változók
         let isCameraRotating = false;
         let isFollowingSource = false;
@@ -1556,6 +1737,7 @@ class WaveEmitter {
         const PHYSICS_UNIT_SPEED = 0.002; // A gömb tágulási sebessége, mint fizikai egység (1 egység)
         //const PHYSICS_UNIT_SPEED2 = 0.002; // A forráspont sebessége, mint fizikai egység (1 egység)
         let movementType = 'water'; // 'water', 'fire', 'circular' vagy 'spiral'
+        let fireSpeedMode = 'uniform'; // 'uniform' or 'decelerating'
         let emitterVelocity = 0; // Kibocsájtó pont sebessége x irányben
         let emitterDirection = 1; // Mozgás iránya (1 vagy -1)
         let circleRadius = 4; // Körmozgás sugara (ThreeJS egységben, nem pixelben)
@@ -2442,7 +2624,8 @@ class WaveEmitter {
             updateCameraPosition();
             
             // Renderer létrehozása
-            renderer = new THREE.WebGLRenderer({ antialias: true });
+            renderer = new THREE.WebGLRenderer({ antialias: true, preserveDrawingBuffer: true });
+            renderer.setPixelRatio(window.devicePixelRatio || 1);
             renderer.setSize(window.innerWidth, window.innerHeight);
             renderer.setClearColor(0xcccccc, 1);
             // Use per-material clipping planes (so source points and timeline markers
@@ -2552,6 +2735,10 @@ class WaveEmitter {
                 
                 // Ha tűzelem módban vagyunk, akkor a physics_velocity-t is frissítjük
                 if (movementType === 'fire' && emitters[0]) {
+                    // Reset decelerating speed from new slider value
+                    emitters.forEach(emitter => {
+                        emitter.fireDeceleratingSpeedX = sourceSpeedX;
+                    });
                     const fireVelocityX = sourceSpeedX * currentXMultiplier * emitterDirection * speedMultiplier;
                     emitters[0].physics_velocity.x = fireVelocityX;
                     console.log('SourceSpeedX slider changed, new physics velocity X:', fireVelocityX);
@@ -2639,6 +2826,16 @@ class WaveEmitter {
                 }
                 console.log('Movement type changed to:', movementType, 'New Multipliers X:', currentXMultiplier, 'Y:', currentYMultiplier);
                 emitterPoint.visible = (movementType !== 'water' && movementType !== 'grid3x3' && movementType !== 'tetrahedron' && movementType !== 'free15');
+
+                // Show/hide fire speed mode group
+                const fireSpeedModeGroup = document.getElementById('fireSpeedModeGroup');
+                if (fireSpeedModeGroup) {
+                    fireSpeedModeGroup.style.display = (movementType === 'fire') ? 'block' : 'none';
+                }
+                // Re-initialize decelerating speed when switching to fire mode
+                if (movementType === 'fire' && emitters[0]) {
+                    emitters[0].fireDeceleratingSpeedX = sourceSpeedX;
+                }
 
 // Free-15 mód: a többitől eltérően nincs interaktív kiválasztás a 3D térben,
 // hanem rögtön egy felugró modálban konfigurálható mind a 15 forráspont.
@@ -2953,6 +3150,26 @@ if (movementType === 'dual') {
                 resetScene();
             }
             
+            // Navigation resolution radio buttons
+            document.querySelectorAll('input[name="navResolution"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    navResolutionFactor = parseFloat(this.value);
+                });
+            });
+
+            // Fire speed mode radio buttons
+            document.querySelectorAll('input[name="fireSpeedMode"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    fireSpeedMode = this.value;
+                    // Re-initialize decelerating speed from current slider value
+                    if (fireSpeedMode === 'decelerating' && movementType === 'fire') {
+                        emitters.forEach(emitter => {
+                            emitter.fireDeceleratingSpeedX = sourceSpeedX;
+                        });
+                    }
+                });
+            });
+
             // Időszál megjelenítés jelölőnégyzet eseménykezelő
             document.getElementById('showTimelineCheck').addEventListener('change', function() {
                 showTimeline = this.checked;
@@ -3018,8 +3235,8 @@ if (movementType === 'dual') {
                 const deltaX = event.clientX - lastMouseX;
                 const deltaY = event.clientY - lastMouseY;
                 
-                cameraAngleY += deltaX * 0.01;
-                cameraAngleX += deltaY * 0.01;
+                cameraAngleY += deltaX * 0.01 * navResolutionFactor;
+                cameraAngleX += deltaY * 0.01 * navResolutionFactor;
                 
                 // Függőleges szög korlátozása
                 cameraAngleX = Math.max(-Math.PI/2 + 0.1, Math.min(Math.PI/2 - 0.1, cameraAngleX));
@@ -3130,7 +3347,7 @@ if (movementType === 'dual') {
         
 
 function handleKeyboardMovement() {
-    const moveSpeed = 0.1;
+    const moveSpeed = 0.1 * navResolutionFactor;
 
     // Aktuális irányvektorok a kamera koordinátái szerint
     const forward = new THREE.Vector3();
@@ -3183,7 +3400,7 @@ function handleKeyboardMovement() {
         
         function onMouseWheel(event) {
             event.preventDefault();
-            cameraDistance += event.deltaY * 0.01;
+            cameraDistance += event.deltaY * 0.01 * navResolutionFactor;
             cameraDistance = Math.max(1, Math.min(20, cameraDistance)); // Korlátozás 1-20 között
             updateCameraPosition();
         }
@@ -3325,6 +3542,8 @@ function handleKeyboardMovement() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
+            // Reset composite canvas so it is recreated at the new physical resolution
+            compositeCanvas = null;
         }
         
         function createSphere() {
@@ -3598,6 +3817,8 @@ if (emitter.timeline) {
     emitter.timeline = { points: [], markers: [], lines: [] };
 }
                 emitter.resync();
+                // Reset decelerating speed to current slider value on scene reset
+                emitter.fireDeceleratingSpeedX = sourceSpeedX;
             });
             
             // Biztosítjuk, hogy a forráspont látható legyen (kivéve grid3x3/tetrahedron/free15 módban)
@@ -3663,7 +3884,7 @@ if (emitter.timeline) {
             handleKeyboardMovement();
             
             // Magyar billentyűk kezelése a kamera forgatásához
-            const rotationSpeed = 0.05;
+            const rotationSpeed = 0.05 * navResolutionFactor;
             
             // ő - balra forgás
             if (keysPressed['HungarianO']) {
@@ -3727,19 +3948,19 @@ if (emitter.timeline) {
             
             // Kamera forgás kezelése
             if (isCameraRotating) {
-                cameraAngleY += cameraRotationSpeed;
+                cameraAngleY += cameraRotationSpeed * navResolutionFactor;
                 updateCameraPosition();
             }
             
             // X és Y tengely körüli forgatás kezelése
             if (isRotatingAroundX) {
                 // X tengely körüli forgatás - a teljes színteret forgatjuk
-                scene.rotation.x += sceneRotationSpeed;
+                scene.rotation.x += sceneRotationSpeed * navResolutionFactor;
             }
             
             if (isRotatingAroundY) {
                 // Y tengely körüli forgatás - a teljes színteret forgatjuk
-                scene.rotation.y += sceneRotationSpeed;
+                scene.rotation.y += sceneRotationSpeed * navResolutionFactor;
             }
             
             // Forráspont követés kezelése
@@ -3771,21 +3992,30 @@ if (emitter.timeline) {
             // Kibocsájtó pont mozgatása a kiválasztott mozgástípus szerint
             if (!isPaused) {
                 if (movementType === 'fire') {
-                    // Tűzelem esetén a mozgást teljes mértékben a fizikai modellre bízzuk
-                    // A felhasználói sebességbeállítást átviszük a physics_velocity-be
                     emitters.forEach(emitter => {
-                        // Csak akkor állítjuk be a kezdeti sebességet, ha még nincs jelentős mozgás
-                        // Ez lehetővé teszi, hogy a sebességcsökkentés megmaradjon
-                        const currentSpeed = emitter.physics_velocity.length();
-                        
-                        // Csak akkor állítjuk be újra, ha a jelenlegi sebesség nagyon kicsi (< 0.001)
-                        if (currentSpeed < PHYSICS_UNIT_SPEED * 0.5) {
-                            emitter.physics_velocity.set(
-                                sourceSpeedX * PHYSICS_UNIT_SPEED,
-                                sourceSpeedY * PHYSICS_UNIT_SPEED,
-                                0
-                            );
-                            console.log(`Fire mode physics velocity set to: ${emitter.physics_velocity.x} ${emitter.physics_velocity.y}`);
+                        if (fireSpeedMode === 'decelerating') {
+                            // Decelerating mode: velocity is set per-emission in update().
+                            // Only set initial velocity when emitter is completely stopped at start.
+                            const currentSpeed = emitter.physics_velocity.length();
+                            if (currentSpeed < PHYSICS_UNIT_SPEED * 0.1 && emitter.fireDeceleratingSpeedX === sourceSpeedX) {
+                                const signX = sourceSpeedX >= 0 ? 1 : -1;
+                                emitter.physics_velocity.set(
+                                    emitter.fireDeceleratingSpeedX * PHYSICS_UNIT_SPEED * signX,
+                                    sourceSpeedY * PHYSICS_UNIT_SPEED,
+                                    0
+                                );
+                            }
+                        } else {
+                            // Uniform mode: reset velocity if it drops too low (current behavior)
+                            const currentSpeed = emitter.physics_velocity.length();
+                            if (currentSpeed < PHYSICS_UNIT_SPEED * 0.5) {
+                                emitter.physics_velocity.set(
+                                    sourceSpeedX * PHYSICS_UNIT_SPEED,
+                                    sourceSpeedY * PHYSICS_UNIT_SPEED,
+                                    0
+                                );
+                                console.log(`Fire mode physics velocity set to: ${emitter.physics_velocity.x} ${emitter.physics_velocity.y}`);
+                            }
                         }
                     });
                 }
@@ -3885,6 +4115,11 @@ if (emitter.timeline) {
             
             // Renderelés mindig fut (hogy az egér mozgatás látható legyen pause alatt is)
             renderer.render(scene, camera);
+
+            // Update composite canvas for video recording
+            if (typeof isRecording !== 'undefined' && isRecording && typeof drawCompositeFrame === 'function') {
+                drawCompositeFrame();
+            }
         }
         
         // Kezdeti inicializálás - csak egyszer hívjuk meg
@@ -4169,16 +4404,50 @@ const clipYSlider = document.getElementById('clipYSlider');
 const clipXSliderGroup = document.getElementById('clipXSliderGroup');
 const clipYSliderGroup = document.getElementById('clipYSliderGroup');
 
+// Rotation state for clipping planes (degrees, incremented by 45)
+let clipXRotAngle = 0; // Rotation angle for the X-metszet plane (planeY), around X axis
+let clipYRotAngle = 0; // Rotation angle for the Y-metszet plane (planeX), around Y axis
+
+const clipRotXGroup = document.getElementById('clipRotXGroup');
+const clipRotYGroup = document.getElementById('clipRotYGroup');
+const clipRotXBtn = document.getElementById('clipRotXBtn');
+const clipRotYBtn = document.getElementById('clipRotYBtn');
+const clipRotXValue = document.getElementById('clipRotXValue');
+const clipRotYValue = document.getElementById('clipRotYValue');
+
+// Helper: update planeY normal based on clipXRotAngle (rotation around X axis)
+function updatePlaneYNormal() {
+    const rad = clipXRotAngle * Math.PI / 180;
+    planeY.normal.set(0, Math.cos(rad), Math.sin(rad)).normalize();
+    const val = parseFloat(clipXSlider.value);
+    planeY.constant = -val;
+    updateClipping();
+}
+
+// Helper: update planeX normal based on clipYRotAngle (rotation around Y axis)
+function updatePlaneXNormal() {
+    const rad = clipYRotAngle * Math.PI / 180;
+    planeX.normal.set(Math.cos(rad), 0, Math.sin(rad)).normalize();
+    const val = parseFloat(clipYSlider.value);
+    planeX.constant = -val;
+    updateClipping();
+}
+
 // Swap button functionality
 clipXBtn.addEventListener('click', () => {
     clipYActive = !clipYActive;                       // toggle Y-plane
     clipXBtn.classList.toggle('active', clipYActive);
     if (clipYActive) {
         clipXSliderGroup.style.display = 'block';
+        clipRotXGroup.style.display = 'flex';
     } else {
         clipXSliderGroup.style.display = 'none';
+        clipRotXGroup.style.display = 'none';
         clipXSlider.value = 0;
         clipXSliderValue.textContent = '0.0';
+        clipXRotAngle = 0;
+        clipRotXValue.textContent = '0°';
+        planeY.normal.set(0, 1, 0);
         planeY.constant = 0;
     }
     updateClipping();
@@ -4189,13 +4458,31 @@ clipYBtn.addEventListener('click', () => {
     clipYBtn.classList.toggle('active', clipXActive);
     if (clipXActive) {
         clipYSliderGroup.style.display = 'block';
+        clipRotYGroup.style.display = 'flex';
     } else {
         clipYSliderGroup.style.display = 'none';
+        clipRotYGroup.style.display = 'none';
         clipYSlider.value = 0;
         clipYSliderValue.textContent = '0.0';
+        clipYRotAngle = 0;
+        clipRotYValue.textContent = '0°';
+        planeX.normal.set(1, 0, 0);
         planeX.constant = 0;
     }
     updateClipping();
+});
+
+// Rotation buttons
+clipRotXBtn.addEventListener('click', () => {
+    clipXRotAngle = (clipXRotAngle + 45) % 360;
+    clipRotXValue.textContent = clipXRotAngle + '°';
+    updatePlaneYNormal();
+});
+
+clipRotYBtn.addEventListener('click', () => {
+    clipYRotAngle = (clipYRotAngle + 45) % 360;
+    clipRotYValue.textContent = clipYRotAngle + '°';
+    updatePlaneXNormal();
 });
 
 // Slider movement
