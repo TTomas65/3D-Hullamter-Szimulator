@@ -5,6 +5,28 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ![Running image](kepek/Kepernyo_04.jpg)
 
 
+## Újdonságok az 1.58-as verzióban (az 1.57-es verzióhoz képest)
+
+**Körmozgás sebesség mód (Egyenletes / Lassuló)**:
+- A tűzelemhez hasonló rádiógomb-pár jelenik meg a **Körmozgás** mozgástípus kiválasztásakor.
+- **Egyenletes**: a forráspont a csúszkán beállított szögsebességgel egyenletesen mozog a körpályán (korábbi viselkedés).
+- **Lassuló**: a forráspont a beállított sebességgel indul, és minden új kiáradásnál **2 / körsugár egységgel csökkenti a szögsebességét**, amíg le nem áll.
+- A lassulás matematikailag úgy van meghatározva, hogy a kialakuló **körívek egy idő után pontosan érintsék egymást** (ugyanaz a geometriai elv, mint a tűzelem lassuló módjánál). A lépés a körsugárhoz igazodik, így a feltétel minden sugárértéknél érvényes marad.
+- A csúszka értékének módosításakor és jelenetújraindításkor a lassuló sebesség automatikusan visszaáll a kezdeti értékre.
+
+**Videórögzítés felbontásának stabilizálása**:
+- Javítva, hogy sok objektum (hullámgömb) megjelenítésekor a videó **ne essen vissza alacsony felbontásra**.
+- A rögzítés alatt a composite canvas elem **nem cserélődik le** (a `captureStream()` az eredeti elemhez kötött marad), így nem szakad meg a folyam.
+- A rögzítési felbontás **QHD-re (max. 2560×1440) korlátozott**, hogy a VP9 enkóder ne skálázzon le dinamikusan terhelés alatt.
+- A MediaRecorder bitráta **8 Mbps-ről 25 Mbps-re emelve**, így a kép végig éles marad sűrű jelenetnél is.
+
+**Maximálisan megjeleníthető gömbök számának emelése**:
+- Az egyszerre megtartott hullámgömbök felső határa **400-ról 3000-re nőtt**, így hosszabb, sűrűbb hullámterek figyelhetők meg a legrégebbi gömbök törlése előtt.
+
+**Forráspont Sebessége panel javítása**:
+- A több forráspontot használó módoknál (**3x3-as térrács**, **tetraéder csúcspontjai**, **15 forráspont**) a panel korábban eggyel több forráspontot listázott (egy plusz, 0 értékű elemmel).
+- A javítás kihagyja a rejtett, nem használt központi forráspontot, így a lista mostantól **pontosan a tényleges aktív forráspontok számát és sebességét** mutatja, helyes sorszámozással.
+
 ## Újdonságok az 1.57-es verzióban (az 1.56-os verzióhoz képest)
 
 **Tűzelem sebesség mód (Egyenletes / Lassuló)**:

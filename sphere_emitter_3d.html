@@ -972,7 +972,7 @@
             </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.57</span>
+                <span class="version-number">v1.58</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -1084,6 +1084,20 @@
                 <label for="circleRadiusSlider">Körmozgás sugara</label>
                 <input type="range" id="circleRadiusSlider" min="0" max="5" step="0.1" value="4">
                 <div class="value-display" id="circleRadiusValue">4.0</div>
+            </div>
+
+            <div class="control-group" id="circularSpeedModeGroup" style="display:none;">
+                <label style="font-size:12px;color:#94a3b8;margin-bottom:4px;display:block;">Sebesség mód</label>
+                <div style="display:flex;gap:12px;align-items:center;">
+                    <label class="checkbox-container" style="margin:0;">
+                        <input type="radio" name="circularSpeedMode" id="circularSpeedUniform" value="uniform" checked>
+                        <span class="checkbox-label">Egyenletes</span>
+                    </label>
+                    <label class="checkbox-container" style="margin:0;">
+                        <input type="radio" name="circularSpeedMode" id="circularSpeedDecelerating" value="decelerating">
+                        <span class="checkbox-label">Lassuló</span>
+                    </label>
+                </div>
             </div>
             <div class="divider"></div>
             <div class="control-group">
@@ -1266,8 +1280,30 @@ var mediaRecorder   = null;
 var recordedChunks  = [];
 var isRecording     = false;
 
-function ensureCompositeCanvas() {
+/* Cap recording resolution to QHD so the VP9 encoder does not dynamically
+ * downscale frames when scene complexity grows (which manifests as a
+ * resolution drop in the recorded video). 2560x1440 is sharp on screen and
+ * comfortably encodable at our bitrate. */
+var MAX_RECORD_W = 2560;
+var MAX_RECORD_H = 1440;
+
+function computeRecordingPixelRatio() {
     var dpr = window.devicePixelRatio || 1;
+    var w = window.innerWidth  * dpr;
+    var h = window.innerHeight * dpr;
+    if (w > MAX_RECORD_W || h > MAX_RECORD_H) {
+        dpr = Math.min(MAX_RECORD_W / window.innerWidth,
+                       MAX_RECORD_H / window.innerHeight);
+    }
+    return Math.max(0.5, dpr);
+}
+
+function ensureCompositeCanvas() {
+    // Never recreate the canvas element while recording:
+    // captureStream() is bound to the original canvas object, so replacing
+    // it mid-recording breaks the stream and causes resolution drops.
+    if (isRecording && compositeCanvas) return;
+    var dpr = computeRecordingPixelRatio();
     var targetW = Math.round(window.innerWidth  * dpr);
     var targetH = Math.round(window.innerHeight * dpr);
     if (!compositeCanvas ||
@@ -1367,7 +1403,9 @@ window.addEventListener('DOMContentLoaded', function() {
             var mimeType = (typeof MediaRecorder !== 'undefined' &&
                             MediaRecorder.isTypeSupported('video/webm;codecs=vp9'))
                            ? 'video/webm;codecs=vp9' : 'video/webm';
-            mediaRecorder  = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 8000000 });
+            // High bitrate prevents VP9 from internally downscaling under load.
+            // 25 Mbit/s is enough for sustained sharp QHD output.
+            mediaRecorder  = new MediaRecorder(stream, { mimeType: mimeType, videoBitsPerSecond: 25000000 });
             recordedChunks = [];
             mediaRecorder.ondataavailable = function(e) {
                 if (e.data && e.data.size > 0) recordedChunks.push(e.data);
@@ -1423,6 +1461,7 @@ class WaveEmitter {
         this.lastEmissionTime = -Infinity;
         this.physics_velocity = new THREE.Vector3(0, 0, 0); // Forráspont fizikai sebessége ütközés miatt
         this.fireDeceleratingSpeedX = sourceSpeedX; // Current speed units for decelerating fire mode
+        this.circularDeceleratingSpeedX = sourceSpeedX; // Current speed units for decelerating circular mode
     }
 
     get position() { return this.mesh.position; }
@@ -1532,6 +1571,14 @@ class WaveEmitter {
                     sourceSpeedY * PHYSICS_UNIT_SPEED,
                     0
                 );
+            }
+            // Decelerating circular mode: reduce angular speed by 2/circleRadius per emission
+            // so that consecutive arc segments exactly touch (same geometry as fire mode).
+            if (movementType === 'circular' && circularSpeedMode === 'decelerating') {
+                if (this.circularDeceleratingSpeedX > 0) {
+                    const decStep = (circleRadius > 0) ? 2 / circleRadius : 2;
+                    this.circularDeceleratingSpeedX = Math.max(0, this.circularDeceleratingSpeedX - decStep);
+                }
             }
         }
     }
@@ -1738,6 +1785,7 @@ class WaveEmitter {
         //const PHYSICS_UNIT_SPEED2 = 0.002; // A forráspont sebessége, mint fizikai egység (1 egység)
         let movementType = 'water'; // 'water', 'fire', 'circular' vagy 'spiral'
         let fireSpeedMode = 'uniform'; // 'uniform' or 'decelerating'
+        let circularSpeedMode = 'uniform'; // 'uniform' or 'decelerating'
         let emitterVelocity = 0; // Kibocsájtó pont sebessége x irányben
         let emitterDirection = 1; // Mozgás iránya (1 vagy -1)
         let circleRadius = 4; // Körmozgás sugara (ThreeJS egységben, nem pixelben)
@@ -2743,6 +2791,12 @@ class WaveEmitter {
                     emitters[0].physics_velocity.x = fireVelocityX;
                     console.log('SourceSpeedX slider changed, new physics velocity X:', fireVelocityX);
                 }
+                // Ha körmozgás módban vagyunk, visszaállítjuk a lassuló sebességet
+                if (movementType === 'circular') {
+                    emitters.forEach(emitter => {
+                        emitter.circularDeceleratingSpeedX = sourceSpeedX;
+                    });
+                }
             });
 
             sourceSpeedYSlider.addEventListener('input', (e) => {
@@ -2835,6 +2889,17 @@ class WaveEmitter {
                 // Re-initialize decelerating speed when switching to fire mode
                 if (movementType === 'fire' && emitters[0]) {
                     emitters[0].fireDeceleratingSpeedX = sourceSpeedX;
+                }
+                // Show/hide circular speed mode group
+                const circularSpeedModeGroup = document.getElementById('circularSpeedModeGroup');
+                if (circularSpeedModeGroup) {
+                    circularSpeedModeGroup.style.display = (movementType === 'circular') ? 'block' : 'none';
+                }
+                // Re-initialize decelerating speed when switching to circular mode
+                if (movementType === 'circular') {
+                    emitters.forEach(emitter => {
+                        emitter.circularDeceleratingSpeedX = sourceSpeedX;
+                    });
                 }
 
 // Free-15 mód: a többitől eltérően nincs interaktív kiválasztás a 3D térben,
@@ -3165,6 +3230,19 @@ if (movementType === 'dual') {
                     if (fireSpeedMode === 'decelerating' && movementType === 'fire') {
                         emitters.forEach(emitter => {
                             emitter.fireDeceleratingSpeedX = sourceSpeedX;
+                        });
+                    }
+                });
+            });
+
+            // Circular speed mode radio buttons
+            document.querySelectorAll('input[name="circularSpeedMode"]').forEach(radio => {
+                radio.addEventListener('change', function() {
+                    circularSpeedMode = this.value;
+                    // Re-initialize decelerating speed from current slider value
+                    if (circularSpeedMode === 'decelerating' && movementType === 'circular') {
+                        emitters.forEach(emitter => {
+                            emitter.circularDeceleratingSpeedX = sourceSpeedX;
                         });
                     }
                 });
@@ -3542,8 +3620,9 @@ function handleKeyboardMovement() {
             camera.aspect = window.innerWidth / window.innerHeight;
             camera.updateProjectionMatrix();
             renderer.setSize(window.innerWidth, window.innerHeight);
-            // Reset composite canvas so it is recreated at the new physical resolution
-            compositeCanvas = null;
+            // Reset composite canvas so it is recreated at the new physical resolution,
+            // but only when NOT recording (during recording the canvas must stay stable).
+            if (!isRecording) compositeCanvas = null;
         }
         
         function createSphere() {
@@ -3819,6 +3898,7 @@ if (emitter.timeline) {
                 emitter.resync();
                 // Reset decelerating speed to current slider value on scene reset
                 emitter.fireDeceleratingSpeedX = sourceSpeedX;
+                emitter.circularDeceleratingSpeedX = sourceSpeedX;
             });
             
             // Biztosítjuk, hogy a forráspont látható legyen (kivéve grid3x3/tetrahedron/free15 módban)
@@ -4020,7 +4100,10 @@ if (emitter.timeline) {
                     });
                 }
                 else if (movementType === 'circular') {
-                    const angular_displacement = sourceSpeedX * currentXMultiplier * speedMultiplier;
+                    const circActiveSpeed = (circularSpeedMode === 'decelerating' && emitters[0])
+                        ? emitters[0].circularDeceleratingSpeedX
+                        : sourceSpeedX;
+                    const angular_displacement = circActiveSpeed * currentXMultiplier * speedMultiplier;
                     const prev_angle = circleAngle;
                     circleAngle += angular_displacement;
 
@@ -4096,9 +4179,15 @@ if (emitter.timeline) {
             const velocityListEl = document.getElementById('velocity-list');
             if (velocityListEl && emitters.length > 0 && !isPaused) {
                 let html = '';
+                let displayIndex = 0; // Sequential numbering of actually shown sources
                 for (let i = 0; i < emitters.length; i++) {
                     const e = emitters[i];
                     if (!e || !e.mesh) continue;
+                    // Skip the hidden central source point used in multi-source modes
+                    // (grid3x3 / tetrahedron / free15). There the central emitterPoint
+                    // stays in the emitters array but is hidden and never moves, so it
+                    // would otherwise appear as an extra zero-velocity entry.
+                    if (e.mesh.visible === false) continue;
                     const before = positions_before_frame[i];
                     let displaySpeed = 0;
                     if (before) {
@@ -4108,7 +4197,8 @@ if (emitter.timeline) {
                         const speed = Math.sqrt(dx * dx + dy * dy + dz * dz);
                         displaySpeed = speed / PHYSICS_UNIT_SPEED;
                     }
-                    html += `<span class="velocity-row"><span class="velocity-label">#${i + 1}</span><span class="velocity-number">${displaySpeed.toFixed(3)}</span></span>`;
+                    html += `<span class="velocity-row"><span class="velocity-label">#${displayIndex + 1}</span><span class="velocity-number">${displaySpeed.toFixed(3)}</span></span>`;
+                    displayIndex++;
                 }
                 velocityListEl.innerHTML = html;
             }
@@ -4250,13 +4340,13 @@ function updateSpheres() {
         }
     }
     
-    // Max 200 gömb megtartása - a legrégebbiek törlése, ha túllépnénk a határt
-    if (spheres.length > 400) {
+    // Max 3000 gömb megtartása - a legrégebbiek törlése, ha túllépnénk a határt
+    if (spheres.length > 3000) {
         // Rendezzük a gömböket életkor szerint, a legrégebbieket elöre
         spheres.sort((a, b) => a.userData.life - b.userData.life);
         
-        // Töröljük a legrégebbi gömböket, amíg a szám vissza nem csökken 200-ra
-        while (spheres.length > 400) {
+        // Töröljük a legrégebbi gömböket, amíg a szám vissza nem csökken 3000-re
+        while (spheres.length > 3000) {
             const oldestSphere = spheres.shift(); // Eltávolítjuk a legrégebbit
             
             // Ha van emitter, akkor eltávolítjuk a gömböt az emitter listájából is
