@@ -5,6 +5,85 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ![Running image](kepek/Kepernyo_04.jpg)
 
 
+## Újdonságok az 1.59-es verzióban (az 1.58-as verzióhoz képest)
+
+**Ütközési számítás panel**:
+- Új panel a jobb felső sarokban (a „Forráspont Sebessége” panel alatt), amely **minden aktív forráspontnál** megjeleníti a legutóbbi hullámfelülettel való ütközés teljes vektoregyenletét.
+- A panel valós időben mutatja a normálvektort (`n`), a radiális sebességkomponenst (`v·n`), a lökésszámítást (`Δv`), az összesített lökésvektort (`ΣΔv`) és a sebesség változását (`|v|: előtte → utána`).
+- Az utolsó ütközés adatai a képernyőn maradnak, amíg egy újabb ütközés nem váltja fel őket.
+- A megjelenő egyenletek értelmezéséhez részletes, általános segédlet készült (lásd lentebb a **„A vektoregyenletek értelmezése”** szakaszt).
+
+### A vektoregyenletek értelmezése
+
+A jobb felső sarokban megjelenő **Ütközési számítás** panel azt mutatja, hogy amikor a forráspont egy kiáradó hullámgömb felszínébe ütközik, a program milyen vektorszámítással dönti el, mennyire változik meg a forráspont sebessége. A panel minden aktív forráspontnál külön megjeleníti a legutóbbi ütközés számítási adatait. A program kiszámítja, hogy ez a nyomás milyen irányba és mekkora lökést ad a forráspontnak.
+
+**A sorok jelentése általánosan:**
+
+A panelen minden forráspontnál egy blokk jelenik meg, amelynek sorai ugyanazt a logikát követik:
+
+```
+#1 (2 hullám)
+n = (x, y, z)
+v·n = érték
+Δv = (1 − érték)·n = eredmény·n
+ΣΔv = (X, Y, Z),  |Δv| = nagyság
+|v|: sebesség_előtte → sebesség_utána
+```
+
+**A sorok jelentése általánosan:**
+
+**#1 (N hullám)**
+- **#1** = a forráspont sorszáma (ugyanúgy számozva, mint a sebesség panelen).
+- **(N hullám)** = hány különböző hullámgömb felszíne éri el egyszerre a forráspontot. Ha nincs zárójelben szám, akkor csak 1 hullám hat.
+
+**n = (x, y, z)**
+- **n** = a hullámgömb középpontjából a forráspont felé mutató egységvektor (a felszín "normálisa").
+- Ez megadja a lökés irányát: mindig a gömb középpontjából **kifelé** mutat. Ha például a gömb a forrásponttól jobbra van, akkor a lökés balra tolja el a forráspontot.
+- Az értékek -1 és +1 között vannak, és a tér három irányát (X, Y, Z) írják le.
+
+**v·n = érték**
+- Ez a **pontszorzat**: a forráspont sebességvektorának (v) vetülete az n irányra.
+- Az érték megmondja, hogy a forráspont milyen gyorsan mozog a hullámfelület irányába vagy annak ellenkező irányába.
+- A számok ún. "fizikai egységben" vannak, ahol **1.00 = a hullám tágulási sebessége**.
+
+| v·n értéke | Mit jelent? |
+|-----------|-------------|
+| **Negatív** (pl. -0.50, -1.00) | A forráspont **befelé** mozog a hullámfelület irányába (szembe a tágulással). Minél kisebb (negatívabb), annál gyorsabban ütközik befelé. |
+| **Nulla** (0.00) | A forráspont **áll** (radiálisan nem mozog a gömbhöz képest). A hullám teljes erejével megtolja. |
+| **Pozitív, de < 1** (pl. +0.30) | A forráspont **kifelé** mozog, de lassabban, mint a hullám tágul. A hullám még utoléri és megtolja. |
+| **≥ 1** (pl. +1.20) | A forráspont **gyorsabban mozog kifelé**, mint a hullám tágul. A hullám nem éri utol, **nincs hatás**. |
+
+**Δv = (1 − v·n)·n = eredmény·n**
+- Ez a **lökés nagysága** egyetlen hullámtól.
+- A képlet: `Δv = (hullámsebesség − radiális sebesség)`.
+- Ha a forráspont befelé megy (negatív v·n), a két érték összeadódik, így nagyobb lökés keletkezik.
+- A program a "folytonos cap szabályt" használja: a lökés nagysága soha nem haladhatja meg a hullám tágulási sebességét (1.00 egység).
+- Az **n** szorzó azt jelenti, hogy a lökés mindig a gömb középpontjából **kifelé** mutat.
+
+**ΣΔv = (X, Y, Z), |Δv| = nagyság**
+- **ΣΔv** = az **összesített lökésvektor**. Ha egyszerre több hullám is éri a forráspontot, a program minden hullámtól kapott lökést **vektoriálisan összegzi** (nem csak egyszerűen összeadja a számokat!).
+- Az összegzés figyelembe veszi az irányokat is: ha két szembenálló hullám egyszerre éri el a pontot, a lökéseik kioltják egymást.
+- **|Δv|** = a lökésvektor hossza (nagysága). Ez mutatja meg, hogy összességében mekkora lökést kapott a forráspont.
+
+**|v|: sebesség_előtte → sebesség_utána**
+- A forráspont **teljes sebességének nagysága** az ütközés előtt és után.
+- A program a radiális (gömb középpontja felé/kifelé) sebességkomponenst módosítja, de a **tangenciális** (oldalirányú) mozgást meghagyja.
+- Ezért előfordulhat, hogy a teljes sebesség csökken, de nem nullázódik ki — a forráspont továbbra is oldalirányban mozoghat.
+
+
+**Gyors referencia:**
+
+| Jelölés | Jelentése | Fontos tudnivaló |
+|---------|-----------|------------------|
+| **n** | Normálvektor (kifelé mutat a gömb középpontjából) | Megadja a lökés irányát |
+| **v·n** | Radiális sebességkomponens | Negatív = befelé, pozitív = kifelé, 0 = álló |
+| **Δv** | Egy hullámtól kapott lökés | Nagysága maximum 1.00 (hullámsebesség) |
+| **ΣΔv** | Összesített lökésvektor | Több hullám esetén vektoriális összeg |
+| **\|Δv\|** | A lökés nagysága (skalár) | Soha nem lehet nagyobb 1.00-nál |
+| **\|v\|** | A forráspont teljes sebessége | Csak a radiális komponens változik meg |
+
+
+
 ## Újdonságok az 1.58-as verzióban (az 1.57-es verzióhoz képest)
 
 **Körmozgás sebesség mód (Egyenletes / Lassuló)**:

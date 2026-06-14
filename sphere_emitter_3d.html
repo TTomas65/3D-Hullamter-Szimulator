@@ -397,6 +397,54 @@
             font-variant-numeric: tabular-nums;
         }
 
+        /* Collision equation panel: vertical stack like the velocity panel */
+        #collision-container.collision-multi {
+            flex-direction: column;
+            align-items: flex-start;
+            gap: 4px;
+            min-width: 230px;
+            max-width: 300px;
+        }
+
+        .collision-list {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            width: 100%;
+        }
+
+        .collision-row {
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+            padding-bottom: 4px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.15);
+        }
+
+        .collision-row:last-child {
+            border-bottom: none;
+            padding-bottom: 0;
+        }
+
+        .collision-label {
+            font-weight: 600;
+            font-size: 12px;
+            opacity: 0.9;
+        }
+
+        .collision-eq {
+            font-family: 'Consolas', 'Courier New', monospace;
+            font-size: 11px;
+            line-height: 1.5;
+            opacity: 0.95;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .collision-empty {
+            opacity: 0.6;
+            font-style: italic;
+        }
+
         .github-link {
             display: inline-flex;
             align-items: center;
@@ -970,9 +1018,15 @@
                     <span class="velocity-row"><span class="velocity-label">#1</span><span class="velocity-number">0.000</span></span>
                 </div>
             </div>
+            <div id="collision-container" class="version-container collision-multi">
+                <span class="version-title">Ütközési számítás</span>
+                <div id="collision-list" class="collision-list">
+                    <div class="collision-row"><span class="collision-label">#1</span><span class="collision-eq collision-empty">nincs ütközés</span></div>
+                </div>
+            </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.58</span>
+                <span class="version-number">v1.59</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -1462,6 +1516,7 @@ class WaveEmitter {
         this.physics_velocity = new THREE.Vector3(0, 0, 0); // Forráspont fizikai sebessége ütközés miatt
         this.fireDeceleratingSpeedX = sourceSpeedX; // Current speed units for decelerating fire mode
         this.circularDeceleratingSpeedX = sourceSpeedX; // Current speed units for decelerating circular mode
+        this.lastCollision = null;  // Stores the last collision vector-equation data for display
     }
 
     get position() { return this.mesh.position; }
@@ -1613,6 +1668,8 @@ class WaveEmitter {
 
         const totalDelta = new THREE.Vector3(0, 0, 0);    // Σ Δv_i
         let appliedCount = 0;
+        // Capture the representative (last applied) per-sphere terms for display
+        let lastN = null, lastVr = 0, lastDv = 0;
 
         for (let sphere of spheres) {
             const u = sphere.userData;
@@ -1677,6 +1734,10 @@ class WaveEmitter {
             // v = +waveSpeed, then opposite Wave-F catch-up gives v_r exactly -waveSpeed,
             // which is the FP-unstable boundary). With the cap, cancellation is robust.
             const dvScalar = Math.min(waveSpeed, waveSpeed - sourceRadial);
+            // Capture the unit normal BEFORE radialOutward is mutated by multiplyScalar below.
+            lastN = radialOutward.clone();
+            lastVr = sourceRadial;
+            lastDv = dvScalar;
             totalDelta.add(radialOutward.multiplyScalar(dvScalar));
             appliedCount++;
 
@@ -1694,6 +1755,24 @@ class WaveEmitter {
             this.physics_velocity.add(totalDelta);
             const newSpeed = this.physics_velocity.length() / PHYSICS_UNIT_SPEED;
             console.log(`COLLISION: ${appliedCount} wave(s), |Δv|=${(totalDelta.length()/PHYSICS_UNIT_SPEED).toFixed(2)}, speed ${oldSpeed.toFixed(2)} → ${newSpeed.toFixed(2)}`);
+            // Record the vector-equation data for the collision panel. All speed
+            // quantities are normalized to PHYSICS_UNIT_SPEED units (so 1.00 == wave
+            // expansion speed); n is a dimensionless outward unit normal.
+            this.lastCollision = {
+                n:      lastN ? { x: lastN.x, y: lastN.y, z: lastN.z } : { x: 0, y: 0, z: 0 },
+                vr:     lastVr / PHYSICS_UNIT_SPEED,
+                dv:     lastDv / PHYSICS_UNIT_SPEED,
+                totalDv: {
+                    x: totalDelta.x / PHYSICS_UNIT_SPEED,
+                    y: totalDelta.y / PHYSICS_UNIT_SPEED,
+                    z: totalDelta.z / PHYSICS_UNIT_SPEED
+                },
+                totalDvMag: totalDelta.length() / PHYSICS_UNIT_SPEED,
+                count:    appliedCount,
+                oldSpeed: oldSpeed,
+                newSpeed: newSpeed,
+                time:     performance.now()
+            };
         }
     }
 }
@@ -3899,6 +3978,8 @@ if (emitter.timeline) {
                 // Reset decelerating speed to current slider value on scene reset
                 emitter.fireDeceleratingSpeedX = sourceSpeedX;
                 emitter.circularDeceleratingSpeedX = sourceSpeedX;
+                // Clear stale collision equation so the panel starts fresh after reset
+                emitter.lastCollision = null;
             });
             
             // Biztosítjuk, hogy a forráspont látható legyen (kivéve grid3x3/tetrahedron/free15 módban)
@@ -4201,6 +4282,41 @@ if (emitter.timeline) {
                     displayIndex++;
                 }
                 velocityListEl.innerHTML = html;
+            }
+
+            // Collision equation panel: for each active source point show the vector
+            // calculation used the LAST time it collided with a wave surface. Values are
+            // in PHYSICS_UNIT_SPEED units (1.00 == wave speed); n is the outward unit
+            // normal. The last collision is kept on screen until a newer one replaces it.
+            const collisionListEl = document.getElementById('collision-list');
+            if (collisionListEl && emitters.length > 0) {
+                let chtml = '';
+                let cIndex = 0;
+                const sgn = (v) => (v >= 0 ? '+' : '') + v.toFixed(2);
+                for (let i = 0; i < emitters.length; i++) {
+                    const e = emitters[i];
+                    if (!e || !e.mesh) continue;
+                    if (e.mesh.visible === false) continue;
+                    cIndex++;
+                    const c = e.lastCollision;
+                    if (!c) {
+                        chtml += `<div class="collision-row"><span class="collision-label">#${cIndex}</span><span class="collision-eq collision-empty">nincs ütközés</span></div>`;
+                        continue;
+                    }
+                    const nStr  = `(${c.n.x.toFixed(2)}, ${c.n.y.toFixed(2)}, ${c.n.z.toFixed(2)})`;
+                    const dvStr = `(${sgn(c.totalDv.x)}, ${sgn(c.totalDv.y)}, ${sgn(c.totalDv.z)})`;
+                    const label = `#${cIndex}` + (c.count > 1 ? ` (${c.count} hullám)` : '');
+                    chtml += `<div class="collision-row">`
+                        + `<span class="collision-label">${label}</span>`
+                        + `<span class="collision-eq">`
+                        + `n = ${nStr}<br>`
+                        + `v·n = ${c.vr.toFixed(2)}<br>`
+                        + `Δv = (1 − (${c.vr.toFixed(2)}))·n = ${c.dv.toFixed(2)}·n<br>`
+                        + `ΣΔv = ${dvStr},  |Δv| = ${c.totalDvMag.toFixed(2)}<br>`
+                        + `|v|: ${c.oldSpeed.toFixed(2)} → ${c.newSpeed.toFixed(2)}`
+                        + `</span></div>`;
+                }
+                collisionListEl.innerHTML = chtml;
             }
             
             // Renderelés mindig fut (hogy az egér mozgatás látható legyen pause alatt is)
