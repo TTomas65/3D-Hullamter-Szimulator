@@ -5,6 +5,21 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ![Running image](kepek/Kepernyo_04.jpg)
 
 
+## Újdonságok az 1.60-as verzióban (az 1.59-es verzióhoz képest)
+
+**Kattintható 3D ütközés-szemléltető**:
+- A panelen a forráspont sorszáma (pl. **#1**, **#2**) mostantól **kattintható** — rákattintva felugró ablak nyílik.
+- A felugró ablak egy interaktív **3D szemléltetést** mutat, amelyben színkódolt irányvektorok jelenítik meg az ütközés geometriáját: a sebességvektor ütközés előtt (**v**), minden hullám normálvektora (**n**), az egyes hullámok lökései (**Δv**), az összesített lökés (**ΣΔv**) és az eredő sebesség (**v'**).
+- A vektorok mellett a számértékek is megjelennek, az oldalsó panel pedig a teljes egyenletet és egy színmagyarázatot tartalmaz.
+- A nézet **egérrel forgatható** és **görgővel zoomolható**; az ablak az **Esc** billentyűvel vagy a háttérre kattintva zárható.
+- A szemléltető kódja külön fájlban található (`collision_viz.js`), hogy a fő programkód ne hízzon feleslegesen.
+
+**Ki-/bekapcsolható vektornyilak a 3D ütközés-szemléltetőben**:
+- A felugró 3D szemléltető oldalsó paneljén a színmagyarázat (legenda) elemei mostantól **kattinthatók** — a színikonra (vagy a sor szövegére) kattintva az adott típusú vektornyíl **ki- vagy bekapcsolható**.
+- Ez akkor hasznos, ha több vektor egymást takarja: a nem kívánt vektorok kikapcsolásával **jól elkülönítve** vizsgálhatók a megmaradó nyilak (pl. csak a normálvektorok, vagy csak a sebességvektorok).
+- A kikapcsolt vektor a 3D nézetből és a hozzá tartozó számérték-címke is eltűnik; a legendában az elem áthúzott és halványított lesz.
+- **Alapból minden vektor be van kapcsolva**, ahogy eddig is. Az ablak újranyitásakor az állapot visszaáll alaphelyzetbe.
+
 ## Újdonságok az 1.59-es verzióban (az 1.58-as verzióhoz képest)
 
 **Ütközési számítás panel**:

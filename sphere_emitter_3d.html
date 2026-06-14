@@ -432,6 +432,20 @@
             opacity: 0.9;
         }
 
+        /* Clickable source-index label: opens the 3D collision visualization */
+        .collision-clickable {
+            cursor: pointer;
+            color: #38bdf8;
+            text-decoration: underline;
+            text-underline-offset: 2px;
+            transition: color 0.15s, text-shadow 0.15s;
+        }
+
+        .collision-clickable:hover {
+            color: #7dd3fc;
+            text-shadow: 0 0 6px rgba(56, 189, 248, 0.6);
+        }
+
         .collision-eq {
             font-family: 'Consolas', 'Courier New', monospace;
             font-size: 11px;
@@ -1026,7 +1040,7 @@
             </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.59</span>
+                <span class="version-number">v1.60</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -1670,6 +1684,8 @@ class WaveEmitter {
         let appliedCount = 0;
         // Capture the representative (last applied) per-sphere terms for display
         let lastN = null, lastVr = 0, lastDv = 0;
+        // Capture EVERY contributing wave's vectors for the 3D visualization modal
+        const collisionWaves = [];
 
         for (let sphere of spheres) {
             const u = sphere.userData;
@@ -1738,6 +1754,17 @@ class WaveEmitter {
             lastN = radialOutward.clone();
             lastVr = sourceRadial;
             lastDv = dvScalar;
+            // Per-wave record for the 3D visualization (normalized to wave-speed units).
+            collisionWaves.push({
+                n:  { x: lastN.x, y: lastN.y, z: lastN.z },
+                vr: sourceRadial / PHYSICS_UNIT_SPEED,
+                dv: dvScalar / PHYSICS_UNIT_SPEED,
+                dvVec: {
+                    x: lastN.x * dvScalar / PHYSICS_UNIT_SPEED,
+                    y: lastN.y * dvScalar / PHYSICS_UNIT_SPEED,
+                    z: lastN.z * dvScalar / PHYSICS_UNIT_SPEED
+                }
+            });
             totalDelta.add(radialOutward.multiplyScalar(dvScalar));
             appliedCount++;
 
@@ -1751,9 +1778,21 @@ class WaveEmitter {
         // Apply the vector sum of impulses additively (tangential motion preserved,
         // symmetric opposite waves cancel out automatically).
         if (appliedCount > 0) {
+            // Velocity vector BEFORE applying the impulses (normalized to wave-speed units).
+            const velBefore = {
+                x: this.physics_velocity.x / PHYSICS_UNIT_SPEED,
+                y: this.physics_velocity.y / PHYSICS_UNIT_SPEED,
+                z: this.physics_velocity.z / PHYSICS_UNIT_SPEED
+            };
             const oldSpeed = this.physics_velocity.length() / PHYSICS_UNIT_SPEED;
             this.physics_velocity.add(totalDelta);
             const newSpeed = this.physics_velocity.length() / PHYSICS_UNIT_SPEED;
+            // Velocity vector AFTER applying the impulses.
+            const velAfter = {
+                x: this.physics_velocity.x / PHYSICS_UNIT_SPEED,
+                y: this.physics_velocity.y / PHYSICS_UNIT_SPEED,
+                z: this.physics_velocity.z / PHYSICS_UNIT_SPEED
+            };
             console.log(`COLLISION: ${appliedCount} wave(s), |Δv|=${(totalDelta.length()/PHYSICS_UNIT_SPEED).toFixed(2)}, speed ${oldSpeed.toFixed(2)} → ${newSpeed.toFixed(2)}`);
             // Record the vector-equation data for the collision panel. All speed
             // quantities are normalized to PHYSICS_UNIT_SPEED units (so 1.00 == wave
@@ -1771,6 +1810,10 @@ class WaveEmitter {
                 count:    appliedCount,
                 oldSpeed: oldSpeed,
                 newSpeed: newSpeed,
+                // Extra data for the 3D visualization modal:
+                waves:     collisionWaves,   // every contributing wave's n / vr / dv / dvVec
+                velBefore: velBefore,        // source velocity vector before impulses
+                velAfter:  velAfter,         // source velocity vector after impulses
                 time:     performance.now()
             };
         }
@@ -1811,6 +1854,7 @@ class WaveEmitter {
         let pauseStartTime = 0; // Mikor kezdődött a pause
         let totalPausedTime = 0; // Összesen mennyi ideig volt pause állapotban
         let speedMultiplier = 1.0; // Sebesség szorzó - 1.0 = eredeti sebesség, 0.5 = fele sebesség, stb.
+        let lastCollisionHtml = ''; // Cache of last rendered collision-panel HTML (avoids per-frame DOM rebuild)
         
         // Időszál megjelenítés változói
         let showTimeline = false; // Időszál megjelenítése be/ki
@@ -2745,7 +2789,34 @@ class WaveEmitter {
         function init() {
             // Jelenet létrehozása
             scene = new THREE.Scene();
-            
+
+            // Delegated click handler on the collision panel: clicking a source-index
+            // label (#N) opens the 3D collision visualization modal for that emitter.
+            // Delegation is used because the list HTML is rebuilt every animation frame.
+            const collisionListInit = document.getElementById('collision-list');
+            if (collisionListInit) {
+                collisionListInit.addEventListener('click', function (ev) {
+                    const target = ev.target.closest('.collision-clickable');
+                    if (!target) return;
+                    const idx = parseInt(target.getAttribute('data-emitter-idx'), 10);
+                    console.log('Collision label clicked, emitter idx =', idx);
+                    if (isNaN(idx) || !emitters[idx]) {
+                        console.warn('CollisionViz: invalid emitter index', idx);
+                        return;
+                    }
+                    const c = emitters[idx].lastCollision;
+                    if (!c || !c.waves) {
+                        console.warn('CollisionViz: no collision data for emitter', idx);
+                        return;
+                    }
+                    if (typeof CollisionViz !== 'undefined') {
+                        CollisionViz.open(c, target.textContent.trim());
+                    } else {
+                        console.error('CollisionViz module is not loaded.');
+                    }
+                });
+            }
+
             // Kamera beállítása
             camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
             updateCameraPosition();
@@ -4305,9 +4376,11 @@ if (emitter.timeline) {
                     }
                     const nStr  = `(${c.n.x.toFixed(2)}, ${c.n.y.toFixed(2)}, ${c.n.z.toFixed(2)})`;
                     const dvStr = `(${sgn(c.totalDv.x)}, ${sgn(c.totalDv.y)}, ${sgn(c.totalDv.z)})`;
-                    const label = `#${cIndex}` + (c.count > 1 ? ` (${c.count} hullám)` : '');
+                    const labelText = `#${cIndex}` + (c.count > 1 ? ` (${c.count} hullám)` : '');
+                    // The label is clickable; data-emitter-idx links it to the emitters[] entry
+                    // so the click handler can open the 3D visualization with its lastCollision.
                     chtml += `<div class="collision-row">`
-                        + `<span class="collision-label">${label}</span>`
+                        + `<span class="collision-label collision-clickable" data-emitter-idx="${i}" title="Kattints a 3D szemléltetéshez">${labelText}</span>`
                         + `<span class="collision-eq">`
                         + `n = ${nStr}<br>`
                         + `v·n = ${c.vr.toFixed(2)}<br>`
@@ -4316,7 +4389,14 @@ if (emitter.timeline) {
                         + `|v|: ${c.oldSpeed.toFixed(2)} → ${c.newSpeed.toFixed(2)}`
                         + `</span></div>`;
                 }
-                collisionListEl.innerHTML = chtml;
+                // Only touch the DOM when the content actually changed. Rebuilding
+                // innerHTML every frame would destroy/recreate the clickable labels
+                // ~60×/s, which prevents the browser from completing a click (mousedown
+                // and mouseup would land on different element instances).
+                if (chtml !== lastCollisionHtml) {
+                    collisionListEl.innerHTML = chtml;
+                    lastCollisionHtml = chtml;
+                }
             }
             
             // Renderelés mindig fut (hogy az egér mozgatás látható legyen pause alatt is)
@@ -4714,5 +4794,7 @@ clipYSlider.addEventListener('input', () => {
 
 <!-- Screen recorder functionality -->
 <script src="screen_recorder.js"></script>
+<!-- Collision vector-equation 3D visualization modal -->
+<script src="collision_viz.js"></script>
 </body>
 </html>
