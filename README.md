@@ -20,6 +20,8 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 - A kikapcsolt vektor a 3D nézetből és a hozzá tartozó számérték-címke is eltűnik; a legendában az elem áthúzott és halványított lesz.
 - **Alapból minden vektor be van kapcsolva**, ahogy eddig is. Az ablak újranyitásakor az állapot visszaáll alaphelyzetbe.
 
+![Running image](kepek/Kepernyo_05.jpg)
+
 ## Újdonságok az 1.59-es verzióban (az 1.58-as verzióhoz képest)
 
 **Ütközési számítás panel**:
