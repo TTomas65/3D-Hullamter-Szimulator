@@ -5,6 +5,20 @@ Egy interaktív 3D hullámtér szimuláció, amelyet a Three.js könyvtár segí
 ![Running image](kepek/Kepernyo_04.jpg)
 
 
+## Újdonságok az 1.70-es verzióban (az 1.60-as verzióhoz képest)
+
+**Ütközési modellezés és numerikus stabilitás pontosítása**:
+- A szimmetrikus, többforrásos hullámtérben javítva lett az ütközési normálvektorok kezelése, hogy a lebegőpontos kerekítési hibák ne térítsék el fokozatosan a szimmetrikus ágakat.
+- A 7 vízforrásos, `free15` elrendezésnél a program a jellegzetes hatszöges irányokat stabilan felismeri, és a nagyon kicsi eltéréseket kanonikus irányokra igazítja. Ez megakadályozza, hogy az időszálak néhány kiáradási ciklus után külön ágra szakadjanak.
+- A sebességvektoroknál finom rácsos kerekítés és zajszűrés került bevezetésre, így az elméletileg azonos sebességű forráspontok hosszabb ideig azonos pályán maradnak.
+- Az ütközési állapotkezelés most kihagyja a rejtett vagy inaktív forráspontokat, ezért a nem látható segédpontok nem tudnak beleszólni a fizikai számításba.
+
+**Egyidejű hullámhatások kiegyenlítése**:
+- Az ütközési számítás kétlépcsőssé vált: a program először összegyűjti az érintkező hullámjelölteket, és csak ezután alkalmazza az eredő impulzust.
+- Az előrenézési tartományban lévő hullámok már nem adhatnak önállóan teljes sebességlökést a forráspontnak. Csak akkor léphetnek be a számításba, ha ténylegesen csökkentik vagy kiegyenlítik a már kialakult eredő impulzust.
+- Ez javítja azt az esetet, amikor egy szár végén haladó követő forrást az előtte haladó hullámtér hátrafelé nyomna, miközben egy másik hullám előrefelé tartja egyensúlyban. A forráspont így nem ugrik vissza indokolatlanul egy korábbi rétegre.
+- Az ütközési naplózás (`collision-summary`) JSON formában pontosabban elemezhető, így a forráspontok közti sebesség- és impulzuseltérések könnyebben visszakövethetők.
+
 ## Újdonságok az 1.60-as verzióban (az 1.59-es verzióhoz képest)
 
 **Kattintható 3D ütközés-szemléltető**:

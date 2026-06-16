@@ -1040,7 +1040,7 @@
             </div>
             <div class="version-container">
                 <span class="version-title">Hullámtér Szimulátor</span>
-                <span class="version-number">v1.60</span>
+                <span class="version-number">v1.7</span>
             </div>
             <a href="https://github.com/TTomas65/3D-Hullamter-Szimulator" target="_blank" class="github-link">
                 Forráskód: <i class="fab fa-github"></i> GitHub
@@ -1510,12 +1510,116 @@ window.addEventListener('DOMContentLoaded', function() {
  * just because another source (e.g. the sphere's owner) has moved.
  */
 function getCollisionState(sphereUserData, emitter) {
+    if (!sphereUserData.collisionStates) {
+        sphereUserData.collisionStates = new Map();
+    }
     let s = sphereUserData.collisionStates.get(emitter);
     if (!s) {
         s = { hasLeftSource: false, canPushSource: false, hasReducedSpeed: false, hasPenetrated: false };
         sphereUserData.collisionStates.set(emitter, s);
     }
     return s;
+}
+
+function getWaveSphereScale(userData, frameOffset = 0) {
+    const growthRate = Number.isFinite(userData.growthRate) ? userData.growthRate : 0.02;
+    const life = Number.isFinite(userData.life) ? userData.life : 0;
+    const currentScale = Number.isFinite(userData.scale) ? userData.scale : 0.1 + life * growthRate;
+    const initialScale = Number.isFinite(userData.initialScale)
+        ? userData.initialScale
+        : currentScale - life * growthRate;
+    return initialScale + (life + frameOffset) * growthRate;
+}
+
+function getWaveSphereRadius(userData, frameOffset = 0) {
+    return getWaveSphereScale(userData, frameOffset) * 0.1;
+}
+
+function snapScalar(value, eps) {
+    return Math.abs(value) <= eps ? 0 : value;
+}
+
+function snapVelocityScalar(value) {
+    const eps = VELOCITY_SNAP_EPS;
+    if (Math.abs(value) <= eps) return 0;
+    if (Math.abs(value - PHYSICS_UNIT_SPEED) <= eps) return PHYSICS_UNIT_SPEED;
+    if (Math.abs(value + PHYSICS_UNIT_SPEED) <= eps) return -PHYSICS_UNIT_SPEED;
+    return value;
+}
+
+function sanitizeVector(v, eps) {
+    v.x = snapScalar(v.x, eps);
+    v.y = snapScalar(v.y, eps);
+    v.z = snapScalar(v.z, eps);
+    return v;
+}
+
+function quantizeScalar(value, grid) {
+    return Math.round(value / grid) * grid;
+}
+
+function quantizeVector(v, grid) {
+    v.x = quantizeScalar(v.x, grid);
+    v.y = quantizeScalar(v.y, grid);
+    v.z = quantizeScalar(v.z, grid);
+    return sanitizeVector(v, grid * 0.5);
+}
+
+function quantizeUnitVector(v, grid) {
+    quantizeVector(v, grid);
+    const len = v.length();
+    if (len > COLLISION_CENTER_EPS) v.multiplyScalar(1 / len);
+    return sanitizeVector(v, grid * 0.5);
+}
+
+function shouldUseCanonicalHexNormals() {
+    return movementType === 'free15' &&
+        grid3x3SavedFire.length === 0 &&
+        grid3x3SavedWater.length === 7;
+}
+
+function getCollisionContactTolerance() {
+    return shouldUseCanonicalHexNormals()
+        ? COLLISION_BALANCE_LOOKAHEAD
+        : COLLISION_CONTACT_TOLERANCE;
+}
+
+function snapToCanonicalDirectionValue(value) {
+    let best = value;
+    let bestError = Infinity;
+    for (const candidate of CANONICAL_DIRECTION_VALUES) {
+        const error = Math.abs(value - candidate);
+        if (error < bestError) {
+            best = candidate;
+            bestError = error;
+        }
+    }
+    return bestError <= CANONICAL_NORMAL_SNAP_EPS ? best : value;
+}
+
+function canonicalizeCollisionNormal(v) {
+    if (!shouldUseCanonicalHexNormals()) return v;
+    if (Math.abs(v.y) > CANONICAL_NORMAL_SNAP_EPS) return v;
+
+    const x = snapToCanonicalDirectionValue(v.x);
+    const z = snapToCanonicalDirectionValue(v.z);
+    const y = snapToCanonicalDirectionValue(v.y);
+    if (x === v.x && y === v.y && z === v.z) return v;
+
+    v.set(x, y, z);
+    const len = v.length();
+    if (len > COLLISION_CENTER_EPS) v.multiplyScalar(1 / len);
+    sanitizeVector(v, NORMAL_SNAP_EPS);
+    quantizeVector(v, NORMAL_SNAP_GRID);
+    const lenAfter = v.length();
+    if (lenAfter > COLLISION_CENTER_EPS) v.multiplyScalar(1 / lenAfter);
+    return sanitizeVector(v, NORMAL_SNAP_EPS);
+}
+
+function isPhysicsEmitterActive(emitter) {
+    // Hidden source points can remain in the emitters array for UI/reset paths,
+    // but they must not emit, move, or affect collision state.
+    return !!(emitter && emitter.mesh && emitter.mesh.visible !== false);
 }
 
 /* ========= WaveEmitter class ========= */
@@ -1531,6 +1635,9 @@ class WaveEmitter {
         this.fireDeceleratingSpeedX = sourceSpeedX; // Current speed units for decelerating fire mode
         this.circularDeceleratingSpeedX = sourceSpeedX; // Current speed units for decelerating circular mode
         this.lastCollision = null;  // Stores the last collision vector-equation data for display
+        if (!WaveEmitter.nextDebugId) WaveEmitter.nextDebugId = 1;
+        this.debugId = WaveEmitter.nextDebugId++;
+        this.emissionIndex = 0;
     }
 
     get position() { return this.mesh.position; }
@@ -1564,10 +1671,12 @@ class WaveEmitter {
         g.add(solid);
         g.add(wire);
         // A gömb pozíciójának beállítása a forráspont aktuális pozíciójára
-        const currentPosition = this.mesh.position.clone();
+        const currentPosition = quantizeVector(this.mesh.position.clone(), PHYSICS_SNAP_GRID);
+        const emissionIndex = ++this.emissionIndex;
         g.position.copy(currentPosition);
         g.userData = {
             centerPosition: currentPosition,
+            initialScale: 0.1,
             scale: 0.1,
             growthRate: 0.02,
             life: 0,
@@ -1576,6 +1685,7 @@ class WaveEmitter {
             baseMesh: solid,
             wireframeMesh: wire,
             emitter: this,                   // Reference to the emitter that spawned this sphere (owner)
+            emissionIndex,
             // Per-emitter collision state: maps each WaveEmitter to its own
             // { hasLeftSource, canPushSource, hasReducedSpeed, hasPenetrated } record.
             // This is REQUIRED so that an impulse already applied to one source
@@ -1640,6 +1750,7 @@ class WaveEmitter {
                     sourceSpeedY * PHYSICS_UNIT_SPEED,
                     0
                 );
+                quantizeVector(this.physics_velocity, PHYSICS_SNAP_GRID);
             }
             // Decelerating circular mode: reduce angular speed by 2/circleRadius per emission
             // so that consecutive arc segments exactly touch (same geometry as fire mode).
@@ -1675,7 +1786,9 @@ class WaveEmitter {
     //
     // The hasReducedSpeed flag ensures one impulse per penetration episode per sphere;
     // it is reset in updateSpheres() once the source leaves the sphere.
-    updateCollisionPhysics() {
+    updateCollisionPhysics(radiusFrameOffset = 0) {
+        if (!isPhysicsEmitterActive(this)) return;
+
         const sourceRadius = 0.007;                       // Source point radius
         const waveSpeed    = PHYSICS_UNIT_SPEED;          // Wave surface expansion speed = 1 unit
         const sourcePos    = this.mesh.position;
@@ -1686,15 +1799,20 @@ class WaveEmitter {
         let lastN = null, lastVr = 0, lastDv = 0;
         // Capture EVERY contributing wave's vectors for the 3D visualization modal
         const collisionWaves = [];
+        const collisionCandidates = [];
 
         for (let sphere of spheres) {
             const u = sphere.userData;
+            if (u.emitter && !isPhysicsEmitterActive(u.emitter)) continue;
+
             const sphereCenter = u.centerPosition;
-            const sphereRadius = u.scale * 0.1;
+            const sphereRadius = getWaveSphereRadius(u, radiusFrameOffset);
             const distance = sphereCenter.distanceTo(sourcePos);
+            const distanceGap = (distance - (sphereRadius + sourceRadius)) / PHYSICS_UNIT_SPEED;
+            const isLookaheadOnly = distance > sphereRadius + sourceRadius + COLLISION_CONTACT_TOLERANCE;
 
             // Source must be on or inside the wave surface
-            if (distance > sphereRadius + sourceRadius) continue;
+            if (distance > sphereRadius + sourceRadius + getCollisionContactTolerance()) continue;
 
             // Sphere must be large enough relative to the source point
             if (sphereRadius < 2 * sourceRadius) continue;
@@ -1712,16 +1830,20 @@ class WaveEmitter {
             // Compute outward radial unit vector safely (handle source at sphere center)
             const diff = new THREE.Vector3().subVectors(sourcePos, sphereCenter);
             const diffLenSq = diff.lengthSq();
-            if (diffLenSq < 1e-12) continue;
+            if (diffLenSq < COLLISION_CENTER_EPS) continue;
             const radialOutward = diff.multiplyScalar(1 / Math.sqrt(diffLenSq));
-
-            const sourceRadial = this.physics_velocity.dot(radialOutward);
+            sanitizeVector(radialOutward, NORMAL_SNAP_EPS);
+            quantizeUnitVector(radialOutward, NORMAL_SNAP_GRID);
+            canonicalizeCollisionNormal(radialOutward);
+            const sourceRadial = snapVelocityScalar(this.physics_velocity.dot(radialOutward));
 
             // Case A: source overtakes the surface from inside → wave passes through, no effect
-            if (sourceRadial >= waveSpeed) {
-                state.hasPenetrated = true;
-                state.hasLeftSource = true;
-                state.canPushSource = true;
+            if (sourceRadial >= waveSpeed - COLLISION_SPEED_EPS) {
+                if (!isLookaheadOnly) {
+                    state.hasPenetrated = true;
+                    state.hasLeftSource = true;
+                    state.canPushSource = true;
+                }
                 continue;
             }
 
@@ -1749,35 +1871,101 @@ class WaveEmitter {
             // that caused unstable behavior after a cancellation (Wave-W push gives
             // v = +waveSpeed, then opposite Wave-F catch-up gives v_r exactly -waveSpeed,
             // which is the FP-unstable boundary). With the cap, cancellation is robust.
-            const dvScalar = Math.min(waveSpeed, waveSpeed - sourceRadial);
-            // Capture the unit normal BEFORE radialOutward is mutated by multiplyScalar below.
+            const dvScalar = Math.min(waveSpeed, Math.max(0, waveSpeed - sourceRadial));
+            if (dvScalar <= COLLISION_SPEED_EPS) continue;
+            const candidateDelta = radialOutward.clone().multiplyScalar(dvScalar);
+            collisionCandidates.push({
+                u,
+                state,
+                distanceGap,
+                isLookaheadOnly,
+                radialOutward: radialOutward.clone(),
+                sourceRadial,
+                dvScalar,
+                candidateDelta
+            });
+        }
+
+        const applyCollisionCandidate = (candidate) => {
+            const { u, state, distanceGap, radialOutward, sourceRadial, dvScalar, candidateDelta } = candidate;
             lastN = radialOutward.clone();
             lastVr = sourceRadial;
             lastDv = dvScalar;
-            // Per-wave record for the 3D visualization (normalized to wave-speed units).
+            if (COLLISION_DEBUG_ENABLED && DEBUG_EMISSION_CYCLES.has(u.emissionIndex)) {
+                console.log('[collision-debug]', {
+                    source: this.debugId,
+                    waveOwner: u.emitter ? u.emitter.debugId : null,
+                    emission: u.emissionIndex,
+                    distanceGap,
+                    n: {
+                        x: +(lastN.x).toFixed(12),
+                        y: +(lastN.y).toFixed(12),
+                        z: +(lastN.z).toFixed(12)
+                    },
+                    vr: +(sourceRadial / PHYSICS_UNIT_SPEED).toFixed(12),
+                    dv: +(dvScalar / PHYSICS_UNIT_SPEED).toFixed(12),
+                    speedBefore: +(this.physics_velocity.length() / PHYSICS_UNIT_SPEED).toFixed(12)
+                });
+            }
             collisionWaves.push({
-                n:  { x: lastN.x, y: lastN.y, z: lastN.z },
+                source: this.debugId,
+                waveOwner: u.emitter ? u.emitter.debugId : null,
+                emission: u.emissionIndex,
+                distanceGap,
+                n: { x: lastN.x, y: lastN.y, z: lastN.z },
                 vr: sourceRadial / PHYSICS_UNIT_SPEED,
                 dv: dvScalar / PHYSICS_UNIT_SPEED,
                 dvVec: {
-                    x: lastN.x * dvScalar / PHYSICS_UNIT_SPEED,
-                    y: lastN.y * dvScalar / PHYSICS_UNIT_SPEED,
-                    z: lastN.z * dvScalar / PHYSICS_UNIT_SPEED
+                    x: candidateDelta.x / PHYSICS_UNIT_SPEED,
+                    y: candidateDelta.y / PHYSICS_UNIT_SPEED,
+                    z: candidateDelta.z / PHYSICS_UNIT_SPEED
                 }
             });
-            totalDelta.add(radialOutward.multiplyScalar(dvScalar));
+            totalDelta.add(candidateDelta);
+            sanitizeVector(totalDelta, VELOCITY_SNAP_EPS);
             appliedCount++;
 
-            // Mark this (sphere, source) pair as already accounted for in this penetration episode
             state.hasReducedSpeed = true;
-            state.hasPenetrated   = true;
-            state.hasLeftSource   = true;
-            state.canPushSource   = true;
+            state.hasPenetrated = true;
+            state.hasLeftSource = true;
+            state.canPushSource = true;
+        };
+
+        const strictCandidates = collisionCandidates.filter(candidate => !candidate.isLookaheadOnly);
+        for (const candidate of strictCandidates) applyCollisionCandidate(candidate);
+
+        if (shouldUseCanonicalHexNormals() && appliedCount > 0) {
+            const lookaheadCandidates = collisionCandidates
+                .filter(candidate => candidate.isLookaheadOnly)
+                .sort((a, b) => Math.abs(a.distanceGap) - Math.abs(b.distanceGap));
+            const subsetSize = Math.min(lookaheadCandidates.length, 10);
+            const baseDelta = totalDelta.clone();
+            let bestMask = 0;
+            let bestLengthSq = baseDelta.lengthSq();
+            const improvementEpsSq = COLLISION_SPEED_EPS * COLLISION_SPEED_EPS;
+
+            for (let mask = 1; mask < (1 << subsetSize); mask++) {
+                const sum = baseDelta.clone();
+                for (let i = 0; i < subsetSize; i++) {
+                    if ((mask & (1 << i)) !== 0) sum.add(lookaheadCandidates[i].candidateDelta);
+                }
+                sanitizeVector(sum, VELOCITY_SNAP_EPS);
+                const lengthSq = sum.lengthSq();
+                if (lengthSq < bestLengthSq - improvementEpsSq) {
+                    bestLengthSq = lengthSq;
+                    bestMask = mask;
+                }
+            }
+
+            for (let i = 0; i < subsetSize; i++) {
+                if ((bestMask & (1 << i)) !== 0) applyCollisionCandidate(lookaheadCandidates[i]);
+            }
         }
 
         // Apply the vector sum of impulses additively (tangential motion preserved,
         // symmetric opposite waves cancel out automatically).
         if (appliedCount > 0) {
+            sanitizeVector(totalDelta, VELOCITY_SNAP_EPS);
             // Velocity vector BEFORE applying the impulses (normalized to wave-speed units).
             const velBefore = {
                 x: this.physics_velocity.x / PHYSICS_UNIT_SPEED,
@@ -1786,6 +1974,8 @@ class WaveEmitter {
             };
             const oldSpeed = this.physics_velocity.length() / PHYSICS_UNIT_SPEED;
             this.physics_velocity.add(totalDelta);
+            sanitizeVector(this.physics_velocity, VELOCITY_SNAP_EPS);
+            quantizeVector(this.physics_velocity, PHYSICS_SNAP_GRID);
             const newSpeed = this.physics_velocity.length() / PHYSICS_UNIT_SPEED;
             // Velocity vector AFTER applying the impulses.
             const velAfter = {
@@ -1794,6 +1984,32 @@ class WaveEmitter {
                 z: this.physics_velocity.z / PHYSICS_UNIT_SPEED
             };
             console.log(`COLLISION: ${appliedCount} wave(s), |Δv|=${(totalDelta.length()/PHYSICS_UNIT_SPEED).toFixed(2)}, speed ${oldSpeed.toFixed(2)} → ${newSpeed.toFixed(2)}`);
+            if (COLLISION_DEBUG_ENABLED && (appliedCount > 1 || Math.abs(newSpeed - oldSpeed) > 0.5)) {
+                const collisionSummary = {
+                    source: this.debugId,
+                    count: appliedCount,
+                    oldSpeed: +oldSpeed.toFixed(12),
+                    newSpeed: +newSpeed.toFixed(12),
+                    totalDv: {
+                        x: +(totalDelta.x / PHYSICS_UNIT_SPEED).toFixed(12),
+                        y: +(totalDelta.y / PHYSICS_UNIT_SPEED).toFixed(12),
+                        z: +(totalDelta.z / PHYSICS_UNIT_SPEED).toFixed(12)
+                    },
+                    waves: collisionWaves.map(w => ({
+                        waveOwner: w.waveOwner,
+                        emission: w.emission,
+                        distanceGap: +w.distanceGap.toFixed(12),
+                        vr: +w.vr.toFixed(12),
+                        dv: +w.dv.toFixed(12),
+                        n: {
+                            x: +w.n.x.toFixed(12),
+                            y: +w.n.y.toFixed(12),
+                            z: +w.n.z.toFixed(12)
+                        }
+                    }))
+                };
+                console.log('[collision-summary]', JSON.stringify(collisionSummary));
+            }
             // Record the vector-equation data for the collision panel. All speed
             // quantities are normalized to PHYSICS_UNIT_SPEED units (so 1.00 == wave
             // expansion speed); n is a dimensionless outward unit normal.
@@ -1825,6 +2041,7 @@ class WaveEmitter {
         let emitterPoint2 = null; // második forráspont dual módban
         let spheres = [];
         let emitters = []; // Emitter objektumok tömbje
+        let activeSymmetryLock = null;
         let secondaryEmitter = null; // Második emitter a dual módhoz
         
         // 3x3-as térrács változók
@@ -1905,6 +2122,28 @@ class WaveEmitter {
         let sourceSpeedY = 0; // Forráspont sebessége Y-irányban
         let lastEmissionTime = 0;
         const PHYSICS_UNIT_SPEED = 0.002; // A gömb tágulási sebessége, mint fizikai egység (1 egység)
+        const PHYSICS_SUBSTEPS = 32;
+        const PHYSICS_SUBSTEP_DT = 1 / PHYSICS_SUBSTEPS;
+        const COLLISION_DISTANCE_EPS = PHYSICS_UNIT_SPEED * 1e-5;
+        const COLLISION_CONTACT_TOLERANCE = PHYSICS_UNIT_SPEED * 1e-5;
+        const COLLISION_BALANCE_LOOKAHEAD = PHYSICS_UNIT_SPEED * PHYSICS_SUBSTEP_DT;
+        const COLLISION_SPEED_EPS = PHYSICS_UNIT_SPEED * 1e-7;
+        const VELOCITY_SNAP_EPS = PHYSICS_UNIT_SPEED * 1e-3;
+        const PHYSICS_SNAP_GRID = PHYSICS_UNIT_SPEED * 1e-6;
+        const NORMAL_SNAP_GRID = 1e-12;
+        const NORMAL_SNAP_EPS = 1e-10;
+        const CANONICAL_NORMAL_SNAP_EPS = 2e-3;
+        const SQRT3_OVER_2 = Math.sqrt(3) / 2;
+        const CANONICAL_DIRECTION_VALUES = [-1, -SQRT3_OVER_2, -0.5, 0, 0.5, SQRT3_OVER_2, 1];
+        const COLLISION_CENTER_EPS = 1e-18;
+        const COLLISION_DEBUG_ENABLED = true;
+        const DEBUG_EMISSION_CYCLES = new Set([6, 7, 8]);
+        const SYMMETRY_LOCK_ENABLED = false;
+        const SYMMETRY_LOCK_MIN_RING = 3;
+        const SYMMETRY_LOCK_MAX_RING = 12;
+        const SYMMETRY_LOCK_RADIUS_REL_TOL = 0.035;
+        const SYMMETRY_LOCK_ANGLE_TOL = 0.08;
+        const SYMMETRY_LOCK_PLANE_TOL = 0.02;
         //const PHYSICS_UNIT_SPEED2 = 0.002; // A forráspont sebessége, mint fizikai egység (1 egység)
         let movementType = 'water'; // 'water', 'fire', 'circular' vagy 'spiral'
         let fireSpeedMode = 'uniform'; // 'uniform' or 'decelerating'
@@ -1932,6 +2171,222 @@ class WaveEmitter {
             circular: { x: 2.0, y: 0.0 }, 
             spiral:   { x: 2.84, y: 1.8 }
         };
+
+        function normalizeAngleSigned(angle) {
+            let a = angle;
+            while (a <= -Math.PI) a += Math.PI * 2;
+            while (a > Math.PI) a -= Math.PI * 2;
+            return a;
+        }
+
+        function rotateAroundY(v, angle) {
+            const c = Math.cos(angle);
+            const s = Math.sin(angle);
+            return new THREE.Vector3(
+                c * v.x - s * v.z,
+                v.y,
+                s * v.x + c * v.z
+            );
+        }
+
+        function buildRotationalSymmetryLock(sourceEmitters) {
+            if (!SYMMETRY_LOCK_ENABLED || movementType !== 'free15') return null;
+            if (grid3x3SavedFire.length > 0) return null;
+            const active = sourceEmitters.filter(e => isPhysicsEmitterActive(e) && !e.isFireElement);
+            if (active.length < SYMMETRY_LOCK_MIN_RING) return null;
+            if (active.length === 7) {
+                return buildSevenWaterSymmetryLock(active);
+            }
+
+            const center = new THREE.Vector3();
+            active.forEach(e => center.add(e.mesh.position));
+            center.multiplyScalar(1 / active.length);
+
+            const samples = active.map(e => {
+                const rel = new THREE.Vector3().subVectors(e.mesh.position, center);
+                return {
+                    emitter: e,
+                    rel,
+                    radius: Math.hypot(rel.x, rel.z),
+                    yOffset: rel.y
+                };
+            });
+            const maxRadius = Math.max(...samples.map(s => s.radius));
+            if (!Number.isFinite(maxRadius) || maxRadius < 1e-9) return null;
+            if (samples.some(s => Math.abs(s.yOffset) > Math.max(SYMMETRY_LOCK_PLANE_TOL, maxRadius * 0.02))) return null;
+
+            const centerLimit = maxRadius * 0.2;
+            const centerEntries = samples.filter(s => s.radius <= centerLimit);
+            const ring = samples.filter(s => s.radius > centerLimit);
+            const ringCount = ring.length;
+            if (ringCount < SYMMETRY_LOCK_MIN_RING || ringCount > SYMMETRY_LOCK_MAX_RING) return null;
+
+            const targetRadius = Math.max(...ring.map(s => s.radius));
+            const maxRadiusError = Math.max(...ring.map(s => Math.abs(s.radius - targetRadius)));
+            if (maxRadiusError > targetRadius * SYMMETRY_LOCK_RADIUS_REL_TOL) return null;
+
+            const sector = (Math.PI * 2) / ringCount;
+            let best = null;
+            for (const candidate of ring) {
+                const phase = Math.atan2(candidate.rel.z, candidate.rel.x);
+                const usedSlots = new Set();
+                const entries = [];
+                let maxAngleError = 0;
+                let ok = true;
+                for (const s of ring) {
+                    const angle = Math.atan2(s.rel.z, s.rel.x);
+                    let slot = Math.round(normalizeAngleSigned(angle - phase) / sector);
+                    slot = ((slot % ringCount) + ringCount) % ringCount;
+                    if (usedSlots.has(slot)) {
+                        ok = false;
+                        break;
+                    }
+                    usedSlots.add(slot);
+                    const snappedAngle = phase + slot * sector;
+                    const angleError = Math.abs(normalizeAngleSigned(angle - snappedAngle));
+                    maxAngleError = Math.max(maxAngleError, angleError);
+                    entries.push({ emitter: s.emitter, slot, angle: snappedAngle });
+                }
+                if (!ok || usedSlots.size !== ringCount || maxAngleError > SYMMETRY_LOCK_ANGLE_TOL) continue;
+                if (!best || maxAngleError < best.maxAngleError) {
+                    best = { phase, sector, entries, maxAngleError };
+                }
+            }
+            if (!best) return null;
+
+            best.entries.sort((a, b) => a.slot - b.slot);
+            const lock = {
+                center,
+                ringRadius: targetRadius,
+                entries: best.entries,
+                centerEntries: centerEntries.map(s => s.emitter),
+                ringCount,
+                phase: best.phase
+            };
+            applySymmetryLock(lock, true);
+            console.log('[symmetry-lock]', JSON.stringify({
+                enabled: true,
+                ringCount,
+                centerCount: lock.centerEntries.length,
+                radius: +targetRadius.toFixed(12),
+                maxAngleError: +best.maxAngleError.toFixed(12)
+            }));
+            return lock;
+        }
+
+        function buildSevenWaterSymmetryLock(active) {
+            const centroid = new THREE.Vector3();
+            active.forEach(e => centroid.add(e.mesh.position));
+            centroid.multiplyScalar(1 / active.length);
+
+            let centerEmitter = active[0];
+            let bestCenterDistSq = Infinity;
+            for (const e of active) {
+                const d2 = e.mesh.position.distanceToSquared(centroid);
+                if (d2 < bestCenterDistSq) {
+                    bestCenterDistSq = d2;
+                    centerEmitter = e;
+                }
+            }
+
+            const center = centerEmitter.mesh.position.clone();
+            const ringSamples = active
+                .filter(e => e !== centerEmitter)
+                .map(e => {
+                    const rel = new THREE.Vector3().subVectors(e.mesh.position, center);
+                    return {
+                        emitter: e,
+                        angle: Math.atan2(rel.z, rel.x),
+                        radius: Math.hypot(rel.x, rel.z),
+                        yOffset: rel.y
+                    };
+                })
+                .sort((a, b) => a.angle - b.angle);
+
+            if (ringSamples.length !== 6) return null;
+            const ringRadius = ringSamples.reduce((sum, s) => sum + s.radius, 0) / ringSamples.length;
+            if (!Number.isFinite(ringRadius) || ringRadius < 1e-9) return null;
+
+            const meanYOffset = ringSamples.reduce((sum, s) => sum + s.yOffset, 0) / ringSamples.length;
+            const phase = ringSamples[0].angle;
+            const sector = (Math.PI * 2) / ringSamples.length;
+            const entries = ringSamples.map((s, slot) => ({
+                emitter: s.emitter,
+                slot,
+                angle: phase + slot * sector
+            }));
+
+            const lock = {
+                center,
+                ringRadius,
+                entries,
+                centerEntries: [centerEmitter],
+                ringCount: entries.length,
+                phase,
+                forcedSevenWater: true
+            };
+            applySymmetryLock(lock, true);
+            console.log('[symmetry-lock]', JSON.stringify({
+                enabled: true,
+                mode: 'forced-seven-water',
+                ringCount: lock.ringCount,
+                centerSource: centerEmitter.debugId,
+                radius: +ringRadius.toFixed(12),
+                meanYOffset: +meanYOffset.toFixed(12)
+            }));
+            return lock;
+        }
+
+        function refreshSymmetryLock() {
+            if (!SYMMETRY_LOCK_ENABLED) {
+                activeSymmetryLock = null;
+                return;
+            }
+            activeSymmetryLock = buildRotationalSymmetryLock(grid3x3Emitters);
+            if (!activeSymmetryLock && movementType === 'free15' && grid3x3SavedFire.length === 0) {
+                console.log('[symmetry-lock]', JSON.stringify({
+                    enabled: false,
+                    reason: 'no regular planar ring detected',
+                    sourceCount: grid3x3Emitters.length
+                }));
+            }
+        }
+
+        function applySymmetryLock(lock = activeSymmetryLock, forceInitial = false) {
+            if (!SYMMETRY_LOCK_ENABLED) return;
+            if (!lock || !lock.entries || lock.entries.length === 0) return;
+
+            const localPos = new THREE.Vector3();
+            const localVel = new THREE.Vector3();
+            for (const entry of lock.entries) {
+                localPos.add(rotateAroundY(new THREE.Vector3().subVectors(entry.emitter.mesh.position, lock.center), -entry.angle));
+                localVel.add(rotateAroundY(entry.emitter.physics_velocity, -entry.angle));
+            }
+            localPos.multiplyScalar(1 / lock.entries.length);
+            localVel.multiplyScalar(1 / lock.entries.length);
+
+            if (forceInitial) {
+                localPos.set(lock.ringRadius, 0, 0);
+                localVel.set(0, 0, 0);
+            }
+
+            quantizeVector(localPos, PHYSICS_SNAP_GRID);
+            quantizeVector(localVel, PHYSICS_SNAP_GRID);
+
+            for (const entry of lock.entries) {
+                const pos = rotateAroundY(localPos, entry.angle).add(lock.center);
+                const vel = rotateAroundY(localVel, entry.angle);
+                quantizeVector(pos, PHYSICS_SNAP_GRID);
+                quantizeVector(vel, PHYSICS_SNAP_GRID);
+                entry.emitter.mesh.position.copy(pos);
+                entry.emitter.physics_velocity.copy(vel);
+            }
+
+            for (const emitter of lock.centerEntries) {
+                emitter.mesh.position.copy(lock.center);
+                emitter.physics_velocity.set(0, 0, 0);
+            }
+        }
         
         // ========== 3x3-as térrács funkciók ==========
         
@@ -2087,6 +2542,7 @@ class WaveEmitter {
                 }
             });
             grid3x3Emitters = [];
+            activeSymmetryLock = null;
         }
         
         // Kiválasztott pontok számának frissítése
@@ -2404,10 +2860,17 @@ class WaveEmitter {
                     : defaultFireDirection(entry.pos);
                 const fireSpeed = entry.speed * PHYSICS_UNIT_SPEED;
                 newEmitter.physics_velocity.copy(dir.multiplyScalar(fireSpeed));
+                quantizeVector(newEmitter.physics_velocity, PHYSICS_SNAP_GRID);
                 
                 emitters.push(newEmitter);
                 grid3x3Emitters.push(newEmitter);
             });
+
+            if (movementType === 'free15') {
+                refreshSymmetryLock();
+            } else {
+                activeSymmetryLock = null;
+            }
         }
         
         // ========================================================================
@@ -2939,6 +3402,7 @@ class WaveEmitter {
                     });
                     const fireVelocityX = sourceSpeedX * currentXMultiplier * emitterDirection * speedMultiplier;
                     emitters[0].physics_velocity.x = fireVelocityX;
+                    quantizeVector(emitters[0].physics_velocity, PHYSICS_SNAP_GRID);
                     console.log('SourceSpeedX slider changed, new physics velocity X:', fireVelocityX);
                 }
                 // Ha körmozgás módban vagyunk, visszaállítjuk a lassuló sebességet
@@ -2958,6 +3422,7 @@ class WaveEmitter {
                 if (movementType === 'fire' && emitters[0]) {
                     const fireVelocityY = sourceSpeedY * currentYMultiplier * speedMultiplier;
                     emitters[0].physics_velocity.y = fireVelocityY;
+                    quantizeVector(emitters[0].physics_velocity, PHYSICS_SNAP_GRID);
                     console.log('SourceSpeedY slider changed, new physics velocity Y:', fireVelocityY);
                 }
             });
@@ -3023,6 +3488,7 @@ class WaveEmitter {
                     const fireVelocityX = sourceSpeedX * currentXMultiplier * emitterDirection * speedMultiplier;
                     const fireVelocityY = sourceSpeedY * currentYMultiplier * speedMultiplier;
                     emitters[0].physics_velocity.set(fireVelocityX, fireVelocityY, 0);
+                    quantizeVector(emitters[0].physics_velocity, PHYSICS_SNAP_GRID);
                     console.log('Fire mode physics velocity set to:', fireVelocityX, fireVelocityY);
                 } else if (emitters[0]) {
                     // Más mozgástípusoknál nullázzuk a fizikai sebességet
@@ -3814,6 +4280,7 @@ function handleKeyboardMovement() {
             // Felhasználói adatok tárolása a későbbi animációhoz
             sphere.userData = {
                 centerPosition: new THREE.Vector3(emitterPoint.position.x, emitterPoint.position.y, emitterPoint.position.z),
+                initialScale: 0.1,
                 scale: 0.1,
                 growthRate: 0.02,
                 life: 0,
@@ -3854,6 +4321,7 @@ function createSphereAt(sourceMesh) {
     sphere.position.copy(sourceMesh.position);
     sphere.userData = {
         centerPosition: sourceMesh.position.clone(),
+        initialScale: 0.1,
         scale: 0.1,
         growthRate: 0.02,
         life: 0,
@@ -4225,6 +4693,7 @@ if (emitter.timeline) {
             if (!isPaused) {
                 if (movementType === 'fire') {
                     emitters.forEach(emitter => {
+                        if (!isPhysicsEmitterActive(emitter)) return;
                         if (fireSpeedMode === 'decelerating') {
                             // Decelerating mode: velocity is set per-emission in update().
                             // Only set initial velocity when emitter is completely stopped at start.
@@ -4236,6 +4705,7 @@ if (emitter.timeline) {
                                     sourceSpeedY * PHYSICS_UNIT_SPEED,
                                     0
                                 );
+                                quantizeVector(emitter.physics_velocity, PHYSICS_SNAP_GRID);
                             }
                         } else {
                             // Uniform mode: reset velocity if it drops too low (current behavior)
@@ -4246,6 +4716,7 @@ if (emitter.timeline) {
                                     sourceSpeedY * PHYSICS_UNIT_SPEED,
                                     0
                                 );
+                                quantizeVector(emitter.physics_velocity, PHYSICS_SNAP_GRID);
                                 console.log(`Fire mode physics velocity set to: ${emitter.physics_velocity.x} ${emitter.physics_velocity.y}`);
                             }
                         }
@@ -4303,22 +4774,37 @@ if (emitter.timeline) {
             if (!isPaused && !(grid3x3Mode && !grid3x3Started)) {
                 // Korrigált idő: a pause alatt eltelt időt levonjuk
                 const currentTime = performance.now() - totalPausedTime;
+                applySymmetryLock();
                 
                 // Emitterek frissítése (gömb kibocsájtás)
                 emitters.forEach(emitter => {
+                    if (!isPhysicsEmitterActive(emitter)) return;
                     emitter.update(currentTime);
                 });
+                
+                for (let substep = 0; substep < PHYSICS_SUBSTEPS; substep++) {
+                    const radiusFrameOffset = (substep + 1) * PHYSICS_SUBSTEP_DT;
                 
                 // Fizikai modell frissítése: sebesség alkalmazása és új erők számítása
                 emitters.forEach(emitter => {
                     // Először alkalmazzuk az előző frame-ben számított fizikai sebességet a pozícióra
-                    emitter.mesh.position.add(emitter.physics_velocity);
+                    if (!isPhysicsEmitterActive(emitter)) return;
+                    emitter.mesh.position.addScaledVector(emitter.physics_velocity, PHYSICS_SUBSTEP_DT);
+                    quantizeVector(emitter.mesh.position, PHYSICS_SNAP_GRID);
 
                     // Majd az új pozíció alapján kiszámítjuk a következő frame-re ható erőket (ütközéseket)
-                    emitter.updateCollisionPhysics();
                 });
+                    applySymmetryLock();
+                    updateCollisionExitStates(radiusFrameOffset);
+                    emitters.forEach(emitter => {
+                        if (!isPhysicsEmitterActive(emitter)) return;
+                        emitter.updateCollisionPhysics(radiusFrameOffset);
+                    });
+                    applySymmetryLock();
                 
                 // Gömbök frissítése
+                }
+                
                 updateSpheres();
             }
             // Display the instantaneous speed of every active emitter, numbered.
@@ -4486,20 +4972,47 @@ if (emitter.timeline) {
         }
     
 // ====== SPHERE UPDATE LOGIC (2025-05-28) ======
+function updateCollisionExitStates(radiusFrameOffset = 0) {
+    const sourceRadius = 0.007;
+    for (const sphere of spheres) {
+        const userData = sphere.userData;
+        if (userData.emitter && !isPhysicsEmitterActive(userData.emitter)) continue;
+        const sphereCenter = userData.centerPosition;
+        const sphereRadius = getWaveSphereRadius(userData, radiusFrameOffset);
+        for (const e of emitters) {
+            if (!isPhysicsEmitterActive(e)) continue;
+            const state = getCollisionState(userData, e);
+            const distance = sphereCenter.distanceTo(e.mesh.position);
+            if (distance > sphereRadius + sourceRadius + getCollisionContactTolerance()) {
+                state.hasLeftSource = true;
+                state.hasPenetrated = false;
+                state.hasReducedSpeed = false;
+            }
+            if (state.hasLeftSource) {
+                state.canPushSource = true;
+            }
+        }
+    }
+}
+
 function updateSpheres() {
     for (let i = 0; i < spheres.length; i++) {
         const sphere = spheres[i];
         const userData = sphere.userData;
+        const ownerIsActive = !userData.emitter || isPhysicsEmitterActive(userData.emitter);
         
         // A pozíció a rögzített középponton marad
         sphere.position.copy(userData.centerPosition);
         
         // Folyamatos méret növelése - konstans alapsebesség
-        userData.scale += userData.growthRate;
+        userData.initialScale = Number.isFinite(userData.initialScale)
+            ? userData.initialScale
+            : userData.scale - userData.life * userData.growthRate;
+        userData.life++;
+        userData.scale = userData.initialScale + userData.life * userData.growthRate;
         sphere.scale.set(userData.scale, userData.scale, userData.scale);
         
         // Élettartam növelése
-        userData.life++;
         
         // Update per-emitter collision state for EVERY active emitter, not just
         // the sphere's owner. This is essential: a wave's impulse on one source
@@ -4509,20 +5022,22 @@ function updateSpheres() {
         // record stored in userData.collisionStates.
         const sphereCenter = userData.centerPosition;
         const sourceRadius = 0.007;
-        const sphereRadius = userData.scale * 0.1;
-        for (const e of emitters) {
-            if (!e || !e.mesh) continue;
-            const state = getCollisionState(userData, e);
-            const distance = sphereCenter.distanceTo(e.mesh.position);
-            if (distance > sphereRadius + sourceRadius) {
-                // This source is OUTSIDE the wave: mark as having left and clear
-                // the per-source impulse flags so a future re-entry can apply again.
-                state.hasLeftSource = true;
-                state.hasPenetrated = false;
-                state.hasReducedSpeed = false;
-            }
-            if (state.hasLeftSource) {
-                state.canPushSource = true;
+        const sphereRadius = getWaveSphereRadius(userData, 0);
+        if (ownerIsActive) {
+            for (const e of emitters) {
+                if (!isPhysicsEmitterActive(e)) continue;
+                const state = getCollisionState(userData, e);
+                const distance = sphereCenter.distanceTo(e.mesh.position);
+                if (distance > sphereRadius + sourceRadius + getCollisionContactTolerance()) {
+                    // This source is OUTSIDE the wave: mark as having left and clear
+                    // the per-source impulse flags so a future re-entry can apply again.
+                    state.hasLeftSource = true;
+                    state.hasPenetrated = false;
+                    state.hasReducedSpeed = false;
+                }
+                if (state.hasLeftSource) {
+                    state.canPushSource = true;
+                }
             }
         }
         
@@ -4623,6 +5138,7 @@ function createSphere() {
     // Metadata for animation (note: opacity no longer varies with life)
     sphere.userData = {
         centerPosition: emitterPoint.position.clone(),
+        initialScale: 0.1,
         scale: 0.1,
         growthRate: 0.02,
         life: 0,

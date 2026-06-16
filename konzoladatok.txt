@@ -1,0 +1,58 @@
+COLLISION: 3 wave(s), |Δv|=0.00, speed 0.00 → 0.00 sphere_emitter_3d.html:1986:21
+COLLISION: 1 wave(s), |Δv|=1.00, speed 1.95 → 0.95 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":159,"count":1,"oldSpeed":1.953139891666,"newSpeed":0.953140241356,"totalDv":{"x":0.5,"y":0,"z":-0.866025403784},"waves":[{"waveOwner":160,"emission":4,"distanceGap":-0.032119321267,"vr":-1.953139891663,"dv":1,"n":{"x":0.5,"y":0,"z":-0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=1.00, speed 1.95 → 0.95 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":161,"count":1,"oldSpeed":1.953139891666,"newSpeed":0.953140241356,"totalDv":{"x":0.5,"y":0,"z":0.866025403784},"waves":[{"waveOwner":162,"emission":4,"distanceGap":-0.032119321267,"vr":-1.953139891663,"dv":1,"n":{"x":0.5,"y":0,"z":0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=1.00, speed 1.95 → 0.95 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":157,"count":1,"oldSpeed":1.95315,"newSpeed":0.95315,"totalDv":{"x":-1,"y":0,"z":0},"waves":[{"waveOwner":158,"emission":4,"distanceGap":-0.085711,"vr":-1.95315,"dv":1,"n":{"x":-1,"y":0,"z":0}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 3 wave(s), |Δv|=0.00, speed 0.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":156,"count":3,"oldSpeed":0,"newSpeed":0,"totalDv":{"x":0,"y":0,"z":0},"waves":[{"waveOwner":157,"emission":3,"distanceGap":-0.007271,"vr":0,"dv":1,"n":{"x":-1,"y":0,"z":0}},{"waveOwner":159,"emission":3,"distanceGap":-0.00197053892,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":-0.866025403784}},{"waveOwner":161,"emission":3,"distanceGap":-0.00197053892,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":0.866025403784}}]} sphere_emitter_3d.html:2011:25
+Grid 3x3 simulation restarted with saved configuration sphere_emitter_3d.html:4570:25
+COLLISION: 3 wave(s), |Δv|=0.00, speed 0.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":163,"count":3,"oldSpeed":0,"newSpeed":0,"totalDv":{"x":0,"y":0,"z":0},"waves":[{"waveOwner":164,"emission":1,"distanceGap":0,"vr":0,"dv":1,"n":{"x":-1,"y":0,"z":0}},{"waveOwner":166,"emission":1,"distanceGap":-0.00165001815,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":-0.866025403784}},{"waveOwner":168,"emission":1,"distanceGap":-0.00165001815,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 2 wave(s), |Δv|=0.00, speed 0.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":164,"count":2,"oldSpeed":0,"newSpeed":0,"totalDv":{"x":0,"y":0,"z":0},"waves":[{"waveOwner":163,"emission":1,"distanceGap":0,"vr":0,"dv":1,"n":{"x":1,"y":0,"z":0}},{"waveOwner":165,"emission":1,"distanceGap":0,"vr":0,"dv":1,"n":{"x":-1,"y":0,"z":0}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=1.00, speed 0.00 → 1.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":165,"count":1,"oldSpeed":0,"newSpeed":1,"totalDv":{"x":1,"y":0,"z":0},"waves":[{"waveOwner":164,"emission":1,"distanceGap":0,"vr":0,"dv":1,"n":{"x":1,"y":0,"z":0}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 2 wave(s), |Δv|=0.00, speed 0.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":166,"count":2,"oldSpeed":0,"newSpeed":0,"totalDv":{"x":0,"y":0,"z":0},"waves":[{"waveOwner":163,"emission":1,"distanceGap":-0.00165001815,"vr":0,"dv":1,"n":{"x":-0.5,"y":0,"z":0.866025403784}},{"waveOwner":167,"emission":1,"distanceGap":-0.00165001815,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":-0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=1.00, speed 0.00 → 1.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":167,"count":1,"oldSpeed":0,"newSpeed":0.999999650312,"totalDv":{"x":-0.5,"y":0,"z":0.866025403784},"waves":[{"waveOwner":166,"emission":1,"distanceGap":-0.00165001815,"vr":0,"dv":1,"n":{"x":-0.5,"y":0,"z":0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 2 wave(s), |Δv|=0.00, speed 0.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":168,"count":2,"oldSpeed":0,"newSpeed":0,"totalDv":{"x":0,"y":0,"z":0},"waves":[{"waveOwner":163,"emission":1,"distanceGap":-0.00165001815,"vr":0,"dv":1,"n":{"x":-0.5,"y":0,"z":-0.866025403784}},{"waveOwner":169,"emission":1,"distanceGap":-0.00165001815,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=1.00, speed 0.00 → 1.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":169,"count":1,"oldSpeed":0,"newSpeed":0.999999650312,"totalDv":{"x":-0.5,"y":0,"z":-0.866025403784},"waves":[{"waveOwner":168,"emission":1,"distanceGap":-0.00165001815,"vr":0,"dv":1,"n":{"x":-0.5,"y":0,"z":-0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 2 wave(s), |Δv|=1.73, speed 0.00 → 1.73 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":164,"count":2,"oldSpeed":0,"newSpeed":1.732051,"totalDv":{"x":1.732050807569,"y":0,"z":0},"waves":[{"waveOwner":166,"emission":1,"distanceGap":-0.003392063771,"vr":0,"dv":1,"n":{"x":0.866025403784,"y":0,"z":-0.5}},{"waveOwner":168,"emission":1,"distanceGap":-0.003392063771,"vr":0,"dv":1,"n":{"x":0.866025403784,"y":0,"z":0.5}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 2 wave(s), |Δv|=1.73, speed 0.00 → 1.73 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":166,"count":2,"oldSpeed":0,"newSpeed":1.732050605677,"totalDv":{"x":-0.866025403784,"y":0,"z":1.5},"waves":[{"waveOwner":164,"emission":1,"distanceGap":-0.003392063771,"vr":0,"dv":1,"n":{"x":-0.866025403784,"y":0,"z":0.5}},{"waveOwner":168,"emission":1,"distanceGap":-0.00625,"vr":0,"dv":1,"n":{"x":0,"y":0,"z":1}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 2 wave(s), |Δv|=1.73, speed 0.00 → 1.73 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":168,"count":2,"oldSpeed":0,"newSpeed":1.732050605677,"totalDv":{"x":-0.866025403784,"y":0,"z":-1.5},"waves":[{"waveOwner":164,"emission":1,"distanceGap":-0.003392063771,"vr":0,"dv":1,"n":{"x":-0.866025403784,"y":0,"z":-0.5}},{"waveOwner":166,"emission":1,"distanceGap":-0.00625,"vr":0,"dv":1,"n":{"x":0,"y":0,"z":-1}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 3 wave(s), |Δv|=0.00, speed 0.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":163,"count":3,"oldSpeed":0,"newSpeed":0,"totalDv":{"x":0,"y":0,"z":0},"waves":[{"waveOwner":165,"emission":1,"distanceGap":0,"vr":0,"dv":1,"n":{"x":-1,"y":0,"z":0}},{"waveOwner":167,"emission":1,"distanceGap":-0.003300036301,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":-0.866025403784}},{"waveOwner":169,"emission":1,"distanceGap":-0.003300036301,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=1.00, speed 1.73 → 0.73 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":164,"count":1,"oldSpeed":1.732051,"newSpeed":0.732051,"totalDv":{"x":-1,"y":0,"z":0},"waves":[{"waveOwner":165,"emission":2,"distanceGap":-0.054842,"vr":-1.732051,"dv":1,"n":{"x":-1,"y":0,"z":0}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=1.00, speed 1.73 → 0.73 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":166,"count":1,"oldSpeed":1.732050605677,"newSpeed":0.732050955364,"totalDv":{"x":0.5,"y":0,"z":-0.866025403784},"waves":[{"waveOwner":167,"emission":2,"distanceGap":-0.056170406837,"vr":-1.732050605677,"dv":1,"n":{"x":0.5,"y":0,"z":-0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=1.00, speed 1.73 → 0.73 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":168,"count":1,"oldSpeed":1.732050605677,"newSpeed":0.732050955364,"totalDv":{"x":0.5,"y":0,"z":0.866025403784},"waves":[{"waveOwner":169,"emission":2,"distanceGap":-0.056170406837,"vr":-1.732050605677,"dv":1,"n":{"x":0.5,"y":0,"z":0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 3 wave(s), |Δv|=0.00, speed 0.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":163,"count":3,"oldSpeed":0,"newSpeed":0,"totalDv":{"x":0,"y":0,"z":0},"waves":[{"waveOwner":164,"emission":2,"distanceGap":0,"vr":0,"dv":1,"n":{"x":-1,"y":0,"z":0}},{"waveOwner":166,"emission":2,"distanceGap":-0.00165001815,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":-0.866025403784}},{"waveOwner":168,"emission":2,"distanceGap":-0.00165001815,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=0.27, speed 0.73 → 1.00 3 sphere_emitter_3d.html:1986:21
+COLLISION: 1 wave(s), |Δv|=1.00, speed 1.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":166,"count":1,"oldSpeed":1.000000516338,"newSpeed":0,"totalDv":{"x":0.5,"y":0,"z":-0.866025403784},"waves":[{"waveOwner":167,"emission":3,"distanceGap":-0.002272117199,"vr":-1,"dv":1,"n":{"x":0.5,"y":0,"z":-0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=1.00, speed 1.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":168,"count":1,"oldSpeed":1.000000516338,"newSpeed":0,"totalDv":{"x":0.5,"y":0,"z":0.866025403784},"waves":[{"waveOwner":169,"emission":3,"distanceGap":-0.002272117199,"vr":-1,"dv":1,"n":{"x":0.5,"y":0,"z":0.866025403784}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 1 wave(s), |Δv|=1.00, speed 1.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":164,"count":1,"oldSpeed":1,"newSpeed":0,"totalDv":{"x":-1,"y":0,"z":0},"waves":[{"waveOwner":165,"emission":3,"distanceGap":-0.055229,"vr":-1,"dv":1,"n":{"x":-1,"y":0,"z":0}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 2 wave(s), |Δv|=1.95, speed 0.00 → 1.95 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":166,"count":2,"oldSpeed":0,"newSpeed":1.953139891666,"totalDv":{"x":-0.976572585318,"y":0,"z":1.691467173271},"waves":[{"waveOwner":164,"emission":1,"distanceGap":-0.024403538172,"vr":0,"dv":1,"n":{"x":-0.674655105403,"y":0,"z":0.738133110457}},{"waveOwner":168,"emission":1,"distanceGap":-0.026302975569,"vr":0,"dv":1,"n":{"x":-0.301917479915,"y":0,"z":0.953334062814}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 2 wave(s), |Δv|=1.95, speed 0.00 → 1.95 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":168,"count":2,"oldSpeed":0,"newSpeed":1.953139891666,"totalDv":{"x":-0.976572585318,"y":0,"z":-1.691467173271},"waves":[{"waveOwner":164,"emission":1,"distanceGap":-0.024403538172,"vr":0,"dv":1,"n":{"x":-0.674655105403,"y":0,"z":-0.738133110457}},{"waveOwner":166,"emission":1,"distanceGap":-0.026302975569,"vr":0,"dv":1,"n":{"x":-0.301917479915,"y":0,"z":-0.953334062814}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 2 wave(s), |Δv|=1.95, speed 0.00 → 1.95 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":164,"count":2,"oldSpeed":0,"newSpeed":1.95315,"totalDv":{"x":1.953150173849,"y":0,"z":0},"waves":[{"waveOwner":166,"emission":1,"distanceGap":-0.030335983072,"vr":0,"dv":1,"n":{"x":0.976575086924,"y":0,"z":-0.215176903032}},{"waveOwner":168,"emission":1,"distanceGap":-0.030335983072,"vr":0,"dv":1,"n":{"x":0.976575086924,"y":0,"z":0.215176903032}}]} sphere_emitter_3d.html:2011:25
+COLLISION: 3 wave(s), |Δv|=0.00, speed 0.00 → 0.00 sphere_emitter_3d.html:1986:21
+[collision-summary] {"source":163,"count":3,"oldSpeed":0,"newSpeed":0,"totalDv":{"x":0,"y":0,"z":0},"waves":[{"waveOwner":165,"emission":2,"distanceGap":0,"vr":0,"dv":1,"n":{"x":-1,"y":0,"z":0}},{"waveOwner":167,"emission":2,"distanceGap":-0.003703160797,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":-0.866025403784}},{"waveOwner":169,"emission":2,"distanceGap":-0.003703160797,"vr":0,"dv":1,"n":{"x":0.5,"y":0,"z":0.866025403784}}]} sphere_emitter_3d.html:2011:25
+
+​
+
